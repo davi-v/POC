@@ -1,0 +1,9 @@
+S : save
+O : open
+M : change metric
+W : swap distance linear or quadratic
+T : toggle outline
+Left Click : add agent
+Right Click : add goal
+Hold Left Click : pan
+Mouse Scroll : zoom
