@@ -52,6 +52,9 @@
     <Filter Include="imgui">
       <UniqueIdentifier>{66837398-d0bd-4fb4-903c-9107c5dbdc4e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Logger">
+      <UniqueIdentifier>{1bb16075-30d0-48fa-9ca1-21c768f0557b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.hpp">
@@ -74,6 +77,9 @@
     </ClInclude>
     <ClInclude Include="tinyfiledialogs.h">
       <Filter>File Dialog</Filter>
+    </ClInclude>
+    <ClInclude Include="Logger.hpp">
+      <Filter>Logger</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

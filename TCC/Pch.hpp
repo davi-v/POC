@@ -27,13 +27,13 @@
 #include <../rvo2/RVO.h>
 #pragma comment(lib, "rvo2")
 
-typedef std::vector<unsigned char> bytearray;
+#include "Logger.hpp"
 
-template<class T, class...Rest>auto FileAppend(T&& f, Rest&&... rest)
+template<class...Rest>auto FileAppend(std::ofstream& f, Rest&&... rest)
 {
 	(f.write((char*)&rest, sizeof(rest)), ...);
 }
-template<class T, class...Rest>auto FileRead(T&& f, Rest&&... rest)
+template<class...Rest>auto FileRead(std::ifstream& f, Rest&&... rest)
 {
 	(f.read((char*)&rest, sizeof(rest)), ...);
 }
@@ -47,16 +47,3 @@ template<class T, class...Rest>auto MakeUniquePtr(std::unique_ptr<T>& ptr, Rest&
 {
 	ptr = std::make_unique<T>(rest...);
 }
-
-#ifdef _DEBUG
-inline void LOG_ERROR() {}
-
-template<typename First, typename ...Rest>
-void LOG_ERROR(First&& first, Rest && ...rest)
-{
-	std::cout << std::forward<First>(first);
-	LOG_ERROR(std::forward<Rest>(rest)...);
-}
-#else
-#define LOG_ERROR
-#endif

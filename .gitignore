@@ -1,5 +1,6 @@
 .vs
-bin/Debug
+bin/Debug/*.exe
+bin/Debug/*.pdb
 lib/Debug
 lib/Release
 obj

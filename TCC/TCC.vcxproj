@@ -194,6 +194,7 @@
   <ItemGroup>
     <ClInclude Include="Hopcroft.hpp" />
     <ClInclude Include="Hungarian.h" />
+    <ClInclude Include="Logger.hpp" />
     <ClInclude Include="Pch.hpp" />
     <ClInclude Include="Random.hpp" />
     <ClInclude Include="Simulator2D.hpp" />

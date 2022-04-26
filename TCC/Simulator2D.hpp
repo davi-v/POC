@@ -8,7 +8,7 @@ struct Coord
 };
 
 #define SIMULATOR_EXT "tcc"
-static constexpr char const* lFilterPatterns[] = { "*." SIMULATOR_EXT};
+static constexpr wchar_t const* lFilterPatterns[] = { L"*." SIMULATOR_EXT};
 
 static constexpr auto DEFAULT_RADIUS = 30.f; // em metros
 static const auto DEFAULT_COLOR = sf::Color::Red; // em metros
@@ -93,8 +93,8 @@ class Simulator2D
 	std::deque<std::pair<const char*, sf::Time>> warnings;
 	void addMessage(const char* msg);
 
-	bool loadAgentsAndGoals(const std::string& path);
-	void saveAgentsAndGoals(const std::string& path);
+	bool loadAgentsAndGoals(const std::wstring& path);
+	void saveAgentsAndGoals(const std::wstring& path);
 
 	sf::Font font;
 	sf::Text textPopUpMessages, textMetric;

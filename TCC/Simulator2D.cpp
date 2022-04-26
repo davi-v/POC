@@ -9,7 +9,7 @@ void Simulator2D::addMessage(const char* msg)
 	warnings.emplace_back(msg, clock.getElapsedTime());
 }
 
-bool Simulator2D::loadAgentsAndGoals(const std::string& path)
+bool Simulator2D::loadAgentsAndGoals(const std::wstring& path)
 {
 	if (auto f = std::ifstream(path, std::ios::binary | std::ios::ate))
 	{
@@ -55,13 +55,12 @@ bool Simulator2D::loadAgentsAndGoals(const std::string& path)
 		for (size_t i = 0; i != div; i++)
 			FileRead(f, goals[i]);
 
-
 		return true;
 	}
 	return false;
 }
 
-void Simulator2D::saveAgentsAndGoals(const std::string& path)
+void Simulator2D::saveAgentsAndGoals(const std::wstring& path)
 {
 	if (auto f = std::ofstream(path, std::ios::binary))
 	{
@@ -367,8 +366,8 @@ void Simulator2D::pollEvent(const sf::Event& event)
 		{
 			if (!agents.empty() || !goals.empty())
 			{
-				auto selection = tinyfd_saveFileDialog( // there is also a wchar_t version
-					"Select where to save the current agents and goals", // title
+				auto selection = tinyfd_saveFileDialogW( // there is also a wchar_t version
+					L"Select where to save the current agents and goals", // title
 					nullptr, // optional initial directory
 					1, // number of filter patterns
 					lFilterPatterns, // char const * lFilterPatterns[2] = { "*.txt", "*.jpg" };
@@ -382,8 +381,8 @@ void Simulator2D::pollEvent(const sf::Event& event)
 		case sf::Keyboard::O:
 		{
 			sim.reset();
-			auto selection = tinyfd_openFileDialog( // there is also a wchar_t version
-				"Select map to load", // title
+			auto selection = tinyfd_openFileDialogW( // there is also a wchar_t version
+				L"Select map to load", // title
 				nullptr, // optional initial directory
 				1, // number of filter patterns
 				lFilterPatterns, // char const * lFilterPatterns[2] = { "*.txt", "*.jpg" };
@@ -487,10 +486,7 @@ bool Simulator2D::reachedGoal()
 
 bool Simulator2D::condCanCompute()
 {
-	auto
-		nAgents = agents.size(),
-		nGoals = goals.size();
-	return nAgents && nAgents >= nGoals;
+	return agents.size() >= goals.size();
 }
 
 void Simulator2D::tryUpdateGraph()
