@@ -1,4 +1,3 @@
-#include "Pch.hpp"
 using namespace std;
 ///////////////////////////////////////////////////////////////////////////////
 // Hungarian.cpp: Implementation file for Class HungarianAlgorithm.
@@ -26,8 +25,8 @@ HungarianAlgorithm::~HungarianAlgorithm(){}
 //********************************************************//
 double HungarianAlgorithm::Solve(vector <vector<double> >& DistMatrix, vector<int>& Assignment)
 {
-	auto nRows = DistMatrix.size();
-	auto nCols = DistMatrix[0].size();
+	unsigned int nRows = DistMatrix.size();
+	unsigned int nCols = DistMatrix[0].size();
 
 	double *distMatrixIn = new double[nRows * nCols];
 	int *assignment = new int[nRows];

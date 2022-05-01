@@ -5,6 +5,8 @@
 static const std::string SCREENSHOTS_DIR = "screenshots/";
 static constexpr auto SCREENSHOT_EXT = ".png";
 
+#define USE_CUSTOM_FONT_IN_IMGUI
+
 int main()
 {
 	sf::RenderWindow window{
@@ -20,20 +22,26 @@ int main()
 		sf::Style::Fullscreen
 #endif
 	};
+
+#ifdef USE_CUSTOM_FONT_IN_IMGUI
+	ImGui::SFML::Init(window, false);
+	auto& IO = ImGui::GetIO();
+	IO.Fonts->AddFontFromFileTTF("segoeui.ttf", 28);
+	ImGui::SFML::UpdateFontTexture();
+#else
+	ImGui::SFML::Init(window);
+#endif
+
 	Simulator2D simulator{ window };
-	//for (int i = 0; i != 10; i++)
-	//	for (int j = 0; j != 10; j++)
-	//		simulator.addAgent({
-	//			{i * 40., j * 40.},
-	//			0.2,
-	//			sf::Color{ 36 + rand() % 220u, 36 + rand() % 220u, 36 + rand() % 220u}
-	//			});
 
 	sf::Event event;
+	sf::Clock c;
 	while (window.isOpen())
 	{
 		while (window.pollEvent(event))
 		{
+			ImGui::SFML::ProcessEvent(window, event);
+
 			switch (event.type)
 			{
 				case sf::Event::Closed:
@@ -64,11 +72,14 @@ int main()
 
 			simulator.pollEvent(event);
 		}
+		
+		ImGui::SFML::Update(window, c.restart());
 
 		window.clear();
-
 		simulator.tickAndDraw();
 
+		ImGui::SFML::Render(window);
 		window.display();
 	}
+	ImGui::SFML::Shutdown();
 }

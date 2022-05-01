@@ -1,49 +1,36 @@
 #pragma once
-
-struct Coord
-{
-	double x, y;
-	operator sf::Vector2f() const;
-	operator RVO::Vector2() const;
-};
+#include "Agent.hpp"
+#include "Goal.hpp"
 
 #define SIMULATOR_EXT "tcc"
+
 static constexpr wchar_t const* lFilterPatterns[] = { L"*." SIMULATOR_EXT};
 
-static constexpr auto DEFAULT_RADIUS = 30.f; // em metros
-static const auto DEFAULT_COLOR = sf::Color::Red; // em metros
 static const auto DEFAULT_VELOCITY = 20.f; // em metros/s
-
-typedef Coord Goal;
-
-class Agent2D
-{
-public:
-	Agent2D(const Coord& coord, double radius = DEFAULT_RADIUS, const sf::Color& color = DEFAULT_COLOR);
-	Coord coord;
-	Goal* goalPtr; // se nullptr, o agente está ocioso (não assigned a nenhum goal)
-	double radius;
-	sf::Color color;
-	void updateGoal(Goal& goal);
-};
-
 
 double distance(const Agent2D& agent, const Goal& goal);
 double distanceSquared(const Agent2D& agent, const Goal& goal);
 typedef double(*DistanceFunc)(const Agent2D& agent, const Goal& goal);
 
-static constexpr auto WARNING_DURATION = 3.f;
-static const auto GOAL_COLOR = sf::Color::Green;
-
-static constexpr float DEFAULT_ZOOM_LEVEL = 0;
 
 typedef std::vector<std::vector<double>> CostMatrix;
 typedef std::vector<std::pair<size_t, size_t>> Edges;
 class Simulator2D
 {
+	static constexpr auto WARNING_DURATION = 3.f;
+	static constexpr float DEFAULT_ZOOM_LEVEL = 0;
+	static const sf::Color DEFAULT_GOAL_COLOR;
+
+	bool usingDistancesSquared;
+	void updateDistanceSquaredVars();
+	bool hasAtLeast1Edge();
 	void restartRVO2();
 
-	static constexpr auto TICKS_PER_SECOND = 128;
+	int tickRate;
+
+	sf::Font font;
+
+	static constexpr auto TICKS_PER_SECOND = 144;
 	static constexpr float TIME_STEP = 1.f / TICKS_PER_SECOND;
 
 	void updatePreferredVelocities();
@@ -65,8 +52,11 @@ class Simulator2D
 	};
 	DistanceFunc distanceFuncUsingCallback;
 
-	bool condCanCompute();
+	// handles graph with no edges
 	void tryUpdateGraph();
+
+	// doesn't handle graph with no edges
+	void updateGraph();
 
 	double currentMaxEdge, currentMaxEdgeSquared;
 	double currentTotalSumOfEachEdgeDistance, currentTotalSumOfEachEdgeDistanceSquared;
@@ -82,9 +72,9 @@ class Simulator2D
 
 	enum class Metric
 	{
-		MinimizeTotalSumOfEdges,
 		MinimizeBiggestEdge,
-		Both,
+		MinimizeTotalSumOfEdges,
+		MinMaxEdgeThenSum,
 		
 		Count
 	} metric;
@@ -96,11 +86,11 @@ class Simulator2D
 	bool loadAgentsAndGoals(const std::wstring& path);
 	void saveAgentsAndGoals(const std::wstring& path);
 
-	sf::Font font;
-	sf::Text textPopUpMessages, textMetric;
+	sf::Text textPopUpMessages;
 	std::vector<Agent2D> agents;
-	std::vector<Coord> goals;
+	std::vector<Goal> goals;
 	sf::CircleShape circle;
+	static constexpr auto DEFAULT_GOAL_RADIUS = 15.f;
 	sf::RenderWindow& window;
 	float zoomLevel;
 
@@ -116,8 +106,7 @@ class Simulator2D
 public:
 	Simulator2D(sf::RenderWindow& window);
 	void addAgent(const Agent2D& agent);
-	void addGoal(const Coord& coord);
-	void tick();
+	void addGoal(const Goal& coord);
 	void tickAndDraw();
 	void pollEvent(const sf::Event& event);
 };

@@ -11,9 +11,6 @@
     <ClCompile Include="Random.cpp">
       <Filter>Random</Filter>
     </ClCompile>
-    <ClCompile Include="Hungarian.cpp">
-      <Filter>Hungarian</Filter>
-    </ClCompile>
     <ClCompile Include="Utilities.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
@@ -22,6 +19,12 @@
     </ClCompile>
     <ClCompile Include="Hopcroft.cpp">
       <Filter>Hopcroft</Filter>
+    </ClCompile>
+    <ClCompile Include="Coord.cpp">
+      <Filter>Simulator2D\Coord</Filter>
+    </ClCompile>
+    <ClCompile Include="Agent.cpp">
+      <Filter>Simulator2D\Agent</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -37,9 +40,6 @@
     <Filter Include="Random">
       <UniqueIdentifier>{f64968b6-e830-4712-88fc-d2e0af0049d1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Hungarian">
-      <UniqueIdentifier>{9b503020-7753-4497-9975-0131a176b135}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Hopcroft">
       <UniqueIdentifier>{42d3a841-9fe6-413e-ac3d-c6a679225a59}</UniqueIdentifier>
     </Filter>
@@ -49,11 +49,17 @@
     <Filter Include="File Dialog">
       <UniqueIdentifier>{c72bee48-dbfc-4b38-b90f-90e2c15674f0}</UniqueIdentifier>
     </Filter>
-    <Filter Include="imgui">
-      <UniqueIdentifier>{66837398-d0bd-4fb4-903c-9107c5dbdc4e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Logger">
       <UniqueIdentifier>{1bb16075-30d0-48fa-9ca1-21c768f0557b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Coord">
+      <UniqueIdentifier>{f9be909d-ae22-4f69-b89e-0cf25fbe49d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Agent">
+      <UniqueIdentifier>{2f2e9312-6d06-4fba-a3c4-5ed6673323e2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Goal">
+      <UniqueIdentifier>{a113a22f-4637-423d-b9b3-c692e2fbea44}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -66,9 +72,6 @@
     <ClInclude Include="Random.hpp">
       <Filter>Random</Filter>
     </ClInclude>
-    <ClInclude Include="Hungarian.h">
-      <Filter>Hungarian</Filter>
-    </ClInclude>
     <ClInclude Include="Hopcroft.hpp">
       <Filter>Hopcroft</Filter>
     </ClInclude>
@@ -80,6 +83,17 @@
     </ClInclude>
     <ClInclude Include="Logger.hpp">
       <Filter>Logger</Filter>
+    </ClInclude>
+    <ClInclude Include="TemplateUtils.hpp" />
+    <ClInclude Include="DefineUtils.hpp" />
+    <ClInclude Include="Coord.hpp">
+      <Filter>Simulator2D\Coord</Filter>
+    </ClInclude>
+    <ClInclude Include="Agent.hpp">
+      <Filter>Simulator2D\Agent</Filter>
+    </ClInclude>
+    <ClInclude Include="Goal.hpp">
+      <Filter>Simulator2D\Goal</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
