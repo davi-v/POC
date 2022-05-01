@@ -24,7 +24,7 @@
 #pragma comment(lib, "sfml-window" DEBUG_EXT)
 #pragma comment(lib, "sfml-system" DEBUG_EXT)
 
-#include <RVO.h>
+#include <rvo2/RVO.h>
 #pragma comment(lib, "rvo2")
 
 #include <Hungarian.h>

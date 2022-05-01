@@ -1,0 +1,101 @@
+#include "Pch.hpp"
+#include "NavigatorRVO2.hpp"
+
+#include "Simulator2D.hpp"
+#include "DrawUtil.hpp"
+
+NavigatorRVO2::NavigatorRVO2(sf::RenderWindow& window) :
+	window(window)
+{
+	sim.setTimeStep(DEFAULT_TIME_STEP);
+}
+
+void NavigatorRVO2::addAgent(const Agent2D& agent)
+{
+	goals.emplace_back(agent.goalPtr);
+
+	sim.addAgent(
+		RVO::Vector2(static_cast<float>(agent.coord.x), static_cast<float>(agent.coord.y)),
+		DEFAULT_NEIGHBOUR_DIST,
+		DEFAULT_MAX_NEIGHBOURS,
+		DEFAULT_TIME_HORIZON,
+		DEFAULT_TIME_HORIZON_OBST,
+		static_cast<float>(agent.radius) * EXTRA,
+		DEFAULT_AGENT_MAX_VELOCITY
+	);
+}
+
+void NavigatorRVO2::tick()
+{
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+	for (size_t i = 0, end = sim.getNumAgents(); i != end; i++)
+	{
+		const auto& goalPtr = goals[i];
+		RVO::Vector2 goalVec;
+		if (const auto& goalPtr = goals[i])
+		{
+			goalVec = static_cast<RVO::Vector2>(*goalPtr) - sim.getAgentPosition(i);
+			if (goalVec != RVO::Vector2(0, 0))
+				goalVec = RVO::normalize(goalVec) * DEFAULT_AGENT_MAX_VELOCITY;
+		}
+
+		sim.setAgentPrefVelocity(i, goalVec);
+	}
+
+	sim.doStep();
+	LOG(sim.getAgentVelocity(0), '\n');
+}
+
+void NavigatorRVO2::draw()
+{
+	sf::CircleShape circle;
+	circle.setFillColor(sf::Color::Green);
+	PrepareCircle(circle, DEFAULT_GOAL_RADIUS);
+
+	auto nAgents = sim.getNumAgents();
+
+	for (size_t i = 0; i != nAgents; i++)
+	{
+		const auto& goalPtr = goals[i];
+		if (goalPtr)
+		{
+			const auto& goal = *goalPtr;
+			circle.setPosition(goal);
+			window.draw(circle);
+		}
+	}
+
+	circle.setFillColor(sf::Color::Red);
+	for (size_t i = 0; i != nAgents; i++)
+	{
+		PrepareCircle(circle, sim.getAgentRadius(i) / EXTRA);
+		const auto& coord = sim.getAgentPosition(i);
+		circle.setPosition({ coord.x(), coord.y() });
+		window.draw(circle);
+	}
+
+	for (size_t i = 0; i != nAgents; i++)
+	{
+		const auto& goalPtr = goals[i];
+		if (goalPtr)
+		{
+			const auto& goal = *goalPtr;
+			if (drawDestinationLines)
+			{
+				sf::Vertex vertices[2]
+				{
+					sf::Vertex{ ToSFML(sim.getAgentPosition(i)), sf::Color::Magenta},
+					sf::Vertex{ goal, sf::Color::Magenta },
+				};
+				window.draw(vertices, 2, sf::Lines);
+			}
+		}
+	}
+}
+
+void NavigatorRVO2::updateTimeStep(float timeStep)
+{
+	sim.setTimeStep(timeStep);
+}

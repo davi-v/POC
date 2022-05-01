@@ -3,7 +3,7 @@
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Pch.cpp">
-      <Filter>Pch</Filter>
+      <Filter>DrawUtil\Pch</Filter>
     </ClCompile>
     <ClCompile Include="Simulator2D.cpp">
       <Filter>Simulator2D</Filter>
@@ -20,17 +20,26 @@
     <ClCompile Include="Hopcroft.cpp">
       <Filter>Hopcroft</Filter>
     </ClCompile>
-    <ClCompile Include="Coord.cpp">
-      <Filter>Simulator2D\Coord</Filter>
-    </ClCompile>
     <ClCompile Include="Agent.cpp">
-      <Filter>Simulator2D\Agent</Filter>
+      <Filter>Simulator2D\Agent2D</Filter>
+    </ClCompile>
+    <ClCompile Include="NavigatorRVO2.cpp">
+      <Filter>Simulator2D\Simulators\rvo2</Filter>
+    </ClCompile>
+    <ClCompile Include="DrawUtil.cpp">
+      <Filter>DrawUtil</Filter>
+    </ClCompile>
+    <ClCompile Include="NavigatorCamposPotenciais.cpp">
+      <Filter>Simulator2D\Simulators\Campos Potenciais</Filter>
+    </ClCompile>
+    <ClCompile Include="NavigatorInterface.cpp">
+      <Filter>Simulator2D\Simulators\NavigatorInterface</Filter>
+    </ClCompile>
+    <ClCompile Include="Goal.cpp">
+      <Filter>Simulator2D\Goal</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="Pch">
-      <UniqueIdentifier>{6ec6d48e-35a4-4953-8f6b-b285ed91d1c7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Simulator3D">
       <UniqueIdentifier>{a2a9c5c8-c8d3-467f-a708-c4d01f74b656}</UniqueIdentifier>
     </Filter>
@@ -52,19 +61,37 @@
     <Filter Include="Logger">
       <UniqueIdentifier>{1bb16075-30d0-48fa-9ca1-21c768f0557b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Simulator2D\Coord">
-      <UniqueIdentifier>{f9be909d-ae22-4f69-b89e-0cf25fbe49d4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\Agent">
-      <UniqueIdentifier>{2f2e9312-6d06-4fba-a3c4-5ed6673323e2}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Simulator2D\Goal">
       <UniqueIdentifier>{a113a22f-4637-423d-b9b3-c692e2fbea44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Simulators">
+      <UniqueIdentifier>{5e006226-520d-475e-b6d5-0003b86fb9e4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Simulators\rvo2">
+      <UniqueIdentifier>{835b72e5-305f-4f38-aae4-bf10e46cb886}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Simulators\Campos Potenciais">
+      <UniqueIdentifier>{10ee16e9-461a-4ade-84ba-edc88c8c4c78}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Agent2D">
+      <UniqueIdentifier>{2f2e9312-6d06-4fba-a3c4-5ed6673323e2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DrawUtil">
+      <UniqueIdentifier>{e9853e7a-27e8-4f1d-8759-06c03dae2d67}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DrawUtil\Pch">
+      <UniqueIdentifier>{6ec6d48e-35a4-4953-8f6b-b285ed91d1c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Simulators\NavigatorInterface">
+      <UniqueIdentifier>{24954597-02cb-49e1-8b12-3abf67256ccb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\vec2">
+      <UniqueIdentifier>{f9be909d-ae22-4f69-b89e-0cf25fbe49d4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.hpp">
-      <Filter>Pch</Filter>
+      <Filter>DrawUtil\Pch</Filter>
     </ClInclude>
     <ClInclude Include="Simulator2D.hpp">
       <Filter>Simulator2D</Filter>
@@ -86,14 +113,26 @@
     </ClInclude>
     <ClInclude Include="TemplateUtils.hpp" />
     <ClInclude Include="DefineUtils.hpp" />
-    <ClInclude Include="Coord.hpp">
-      <Filter>Simulator2D\Coord</Filter>
+    <ClInclude Include="vec2.hpp">
+      <Filter>Simulator2D\vec2</Filter>
     </ClInclude>
     <ClInclude Include="Agent.hpp">
-      <Filter>Simulator2D\Agent</Filter>
+      <Filter>Simulator2D\Agent2D</Filter>
     </ClInclude>
     <ClInclude Include="Goal.hpp">
       <Filter>Simulator2D\Goal</Filter>
+    </ClInclude>
+    <ClInclude Include="NavigatorRVO2.hpp">
+      <Filter>Simulator2D\Simulators\rvo2</Filter>
+    </ClInclude>
+    <ClInclude Include="NavigatorCamposPotenciais.hpp">
+      <Filter>Simulator2D\Simulators\Campos Potenciais</Filter>
+    </ClInclude>
+    <ClInclude Include="DrawUtil.hpp">
+      <Filter>DrawUtil</Filter>
+    </ClInclude>
+    <ClInclude Include="NavigatorInterface.hpp">
+      <Filter>Simulator2D\Simulators\NavigatorInterface</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,13 +1,16 @@
 #include "Pch.hpp"
 #include "Simulator2D.hpp"
 
+#include "DrawUtil.hpp"
+#include "NavigatorRVO2.hpp"
+#include "NavigatorCamposPotenciais.hpp"
 #include "Hopcroft.hpp"
 
 const sf::Color Simulator2D::DEFAULT_GOAL_COLOR = sf::Color::Green;
 
 void Simulator2D::addMessage(const char* msg)
 {
-	warnings.emplace_back(msg, clock.getElapsedTime());
+	warnings.emplace_back(msg, globalClock.getElapsedTime());
 }
 
 bool Simulator2D::loadAgentsAndGoals(const std::wstring& path)
@@ -16,7 +19,7 @@ bool Simulator2D::loadAgentsAndGoals(const std::wstring& path)
 	{
 		auto retError = [&]
 		{
-			LOG_ERROR("Error reading file ", path, '\n');
+			LOG("Error reading file ", path, '\n');
 			return false;
 		};
 
@@ -79,9 +82,10 @@ void Simulator2D::updateZoomFacAndViewSizeFromZoomLevel(sf::View& view)
 }
 
 Simulator2D::Simulator2D(sf::RenderWindow& window) :
-	tickRate(TICKS_PER_SECOND),
+	tickRate(DEFAULT_TICKS_PER_SECOND),
 	distanceFunctionUsingType(DistanceFunctionsEnum::SumOfEachEdgeDistance),
 	distanceFuncUsingCallback(DISTANCE_FUNCTIONS[static_cast<DistanceFunctionsUnderlyingType>(distanceFunctionUsingType)]),
+
 	window(window),
 	metric(Metric::MinimizeTotalSumOfEdges),
 	zoomLevel(DEFAULT_ZOOM_LEVEL),
@@ -126,67 +130,48 @@ static void HelpMarker(const char* desc)
 
 void Simulator2D::tickAndDraw()
 {
-
-	if (sim)
+	if (!navigator)
 	{
-		std::cout << sim->getGlobalTime() << '\n';
-
-		updatePreferredVelocities();
-		sim->doStep();
-	}
-
-	for (size_t i = 0, end = agents.size(); i != end; i++)
-	{
-		const auto& agent = agents[i];
-
-		circle.setFillColor(agent.color);
-		auto radiusRendered = static_cast<float>(agent.radius);
-		circle.setRadius(radiusRendered);
-		auto& origin = radiusRendered;
-		circle.setOrigin(origin, origin);
-
-		sf::Vector2f coordUsing;
-
-		if (sim)
+		for (size_t i = 0, end = agents.size(); i != end; i++)
 		{
-			auto& coord = sim->getAgentPosition(i);
-			coordUsing = { coord.x(), coord.y() };
-		}
-		else
-			coordUsing = agent.coord;
+			const auto& agent = agents[i];
 
-		circle.setPosition(coordUsing);
+			circle.setFillColor(agent.color);
+			PrepareCircle(circle, static_cast<float>(agent.radius));
 
-		window.draw(circle);
-		if (agent.goalPtr)
-		{
-			sf::Color color;
-			if (distanceSquared(agent, *agent.goalPtr) == currentMaxEdgeSquared)
-				color = sf::Color::Yellow;
+			if (navigator)
+				navigator->draw();
 			else
-				color = sf::Color::White;
-			sf::Vertex vertices[2]
 			{
-				sf::Vertex{ coordUsing, color },
-				sf::Vertex{ *agent.goalPtr, color },
-			};
-			window.draw(vertices, 2, sf::Lines);
+				const auto& coord = agent.coord;
+				circle.setPosition(coord);
+				window.draw(circle);
+			}
+
+			if (agent.goalPtr)
+			{
+				sf::Color color;
+				if (distanceSquaredAgent(agent, *agent.goalPtr) == currentMaxEdgeSquared)
+					color = sf::Color::Yellow;
+				else
+					color = sf::Color::White;
+				sf::Vertex vertices[2]
+				{
+					sf::Vertex{ agent.coord, color },
+					sf::Vertex{ *agent.goalPtr, color },
+				};
+				window.draw(vertices, 2, sf::Lines);
+			}
+		}
+
+		circle.setFillColor(DEFAULT_GOAL_COLOR);
+		PrepareCircle(circle, DEFAULT_GOAL_RADIUS);
+		for (const auto& goal : goals)
+		{
+			circle.setPosition(goal);
+			window.draw(circle);
 		}
 	}
-
-	circle.setFillColor(DEFAULT_GOAL_COLOR);
-	circle.setRadius(DEFAULT_GOAL_RADIUS);
-	circle.setOrigin(DEFAULT_GOAL_RADIUS, DEFAULT_GOAL_RADIUS);
-	for (const auto& goal : goals)
-	{
-		circle.setPosition(goal);
-		window.draw(circle);
-	}
-
-	// draw UI in screen space
-	sf::View curView = window.getView(); // to restore later
-	sf::View orgView = window.getDefaultView();
-	window.setView(orgView);
 
 	ImGui::Begin("Settings");
 	{
@@ -194,26 +179,32 @@ void Simulator2D::tickAndDraw()
 		str += "Agents: " + std::to_string(agents.size());
 		str += "\nGoals: " + std::to_string(goals.size());
 		ImGui::Text(str.c_str());
+		if (!navigator)
+			if (ImGui::Button("Clear"))
+				Clear(agents, goals);
 	}
 	if (hasAtLeast1Edge())
 	{
 		if (ImGui::CollapsingHeader("Metrics"))
 		{
-			static constexpr const char* METRIC_MESSAGES[] = {
-				"minimize biggest edge",
-				"minimize total sum of edges",
-				"minimize biggest edge then minimize total sum of edges"
-			};
-			if (ImGui::Combo("metric", reinterpret_cast<int*>(&metric), METRIC_MESSAGES, IM_ARRAYSIZE(METRIC_MESSAGES)))
-				updateGraph();
-			
-			// na métrica de apenas minimizar a maior aresta, não faz diferença se a distância considerada foi quadrática ou não
-			if (metric != Metric::MinimizeBiggestEdge)
-				if (ImGui::Checkbox("distances squared", &usingDistancesSquared))
-				{
-					updateDistanceSquaredVars();
-					updateGraph(); // já sabemos que o grafo tem pelo menos 1 aresta
-				}
+			if (!navigator)
+			{
+				static constexpr const char* METRIC_MESSAGES[] = {
+					"minimize biggest edge",
+					"minimize total sum of edges",
+					"minimize biggest edge then minimize total sum of edges"
+				};
+				if (ImGui::Combo("metric", reinterpret_cast<int*>(&metric), METRIC_MESSAGES, IM_ARRAYSIZE(METRIC_MESSAGES)))
+					updateGraph();
+
+				// na métrica de apenas minimizar a maior aresta, não faz diferença se a distância considerada foi quadrática ou não
+				if (metric != Metric::MinimizeBiggestEdge)
+					if (ImGui::Checkbox("distances squared", &usingDistancesSquared))
+					{
+						updateDistanceSquaredVars();
+						updateGraph(); // já sabemos que o grafo tem pelo menos 1 aresta
+					}
+			}
 
 			std::string str;
 			str += "max edge: " + std::to_string(currentMaxEdge);
@@ -222,23 +213,72 @@ void Simulator2D::tickAndDraw()
 			ImGui::Text(str.c_str());
 		}
 
-		if (ImGui::CollapsingHeader("Simulation Settings"))
+		static constexpr const char* SIMULATION_LOGIC[] = {
+			"None",
+			"rvo2",
+			"Campos Potenciais"
+		};
+		if (ImGui::Combo("Navigator", reinterpret_cast<int*>(&curNavigator), SIMULATION_LOGIC, IM_ARRAYSIZE(SIMULATION_LOGIC)))
 		{
-			ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 0, 256, "%d", ImGuiSliderFlags_AlwaysClamp);
-			ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
-			if (sim)
+			switch (curNavigator)
 			{
-				if (ImGui::Button("Stop"))
-					sim.reset();
-			}
-			else
+			case NavigatorCheckbox::rvo2:
 			{
-				if (ImGui::Button("Start"))
-					restartRVO2();
+				navigator = std::make_unique<NavigatorRVO2>(window);
 			}
+			break;
+			case NavigatorCheckbox::CamposPotenciais:
+			{
+				navigator = std::make_unique<NavigatorCamposPotenciais>(window);
+			}
+			break;
+			default:
+			{
+				navigator.reset();
+			}
+			break;
+			}
+			if (navigator)
+				for (const auto& agent : agents)
+					navigator->addAgent(agent);
 		}
 	}
 	ImGui::End();
+
+	if (navigator)
+	{
+		ImGui::Begin("Navigator Settings");
+		ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 0, 256, "%d", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
+		if (navigator->running)
+		{
+			auto curTime = globalClock.getElapsedTime().asSeconds();
+			if (curTime - navigatorLastTick >= DEFAULT_TIME_STEP)
+			{
+				navigatorLastTick = curTime;
+				navigator->tick();
+			}
+
+			if (ImGui::Button("Stop"))
+				navigator->running = false;
+		}
+		else
+		{
+			if (ImGui::Button("Start"))
+			{
+				navigator->running = true;
+				navigatorLastTick = globalClock.getElapsedTime().asSeconds();
+			}
+		}
+		ImGui::Checkbox("Draw Destination Lines", &navigator->drawDestinationLines);
+		ImGui::End();
+		navigator->draw();
+	}
+
+	// draw UI in screen space
+	sf::View curView = window.getView(); // to restore later
+	sf::View orgView = window.getDefaultView();
+	window.setView(orgView);
 
 	// pop-up messages
 	std::string str;
@@ -246,7 +286,7 @@ void Simulator2D::tickAndDraw()
 	{
 		auto& msg = it->first;
 		auto& ts = it->second;
-		auto now = clock.getElapsedTime();
+		auto now = globalClock.getElapsedTime();
 		if ((now - ts).asSeconds() > WARNING_DURATION)
 			it = warnings.erase(it);
 		else
@@ -336,8 +376,7 @@ void Simulator2D::pollEvent(const sf::Event& event)
 			case sf::Mouse::Left:
 			{
 				lastPxClickedX = -1; // no longer moving the scene
-
-				if (!sim)
+				if (!navigator)
 				{
 					auto& x = event.mouseButton.x;
 					auto& y = event.mouseButton.y;
@@ -351,7 +390,7 @@ void Simulator2D::pollEvent(const sf::Event& event)
 			break;
 			case sf::Mouse::Right:
 			{
-				if (!sim)
+				if (!navigator)
 				{
 					auto& x = event.mouseButton.x;
 					auto& y = event.mouseButton.y;
@@ -375,17 +414,6 @@ void Simulator2D::pollEvent(const sf::Event& event)
 	{
 		switch (event.key.code)
 		{
-		case sf::Keyboard::C:
-		{
-			sim.reset();
-			Clear(agents, goals);
-		}
-		break;
-		case sf::Keyboard::R:
-		{
-			restartRVO2();
-		}
-		break;
 		case sf::Keyboard::T:
 		{
 			if (circle.getOutlineThickness() == 0)
@@ -412,7 +440,6 @@ void Simulator2D::pollEvent(const sf::Event& event)
 		break;
 		case sf::Keyboard::O:
 		{
-			sim.reset();
 			auto selection = tinyfd_openFileDialogW( // there is also a wchar_t version
 				L"Select map to load", // title
 				nullptr, // optional initial directory
@@ -473,7 +500,7 @@ void Simulator2D::pollEvent(const sf::Event& event)
 void Simulator2D::updateDistanceSquaredVars()
 {
 	distanceFunctionUsingType = usingDistancesSquared ? DistanceFunctionsEnum::SumOfEachEdgeDistanceSquared : DistanceFunctionsEnum::SumOfEachEdgeDistance;
-	distanceFuncUsingCallback = usingDistancesSquared ? distanceSquared : distance;
+	distanceFuncUsingCallback = usingDistancesSquared ? distanceSquaredAgent : distanceAgent;
 }
 
 bool Simulator2D::hasAtLeast1Edge()
@@ -482,51 +509,14 @@ bool Simulator2D::hasAtLeast1Edge()
 	return agents.size() >= nGoals && nGoals;
 }
 
-void Simulator2D::restartRVO2()
-{
-	MakeUniquePtr(sim,
-		TIME_STEP, // timestep
-		150.f, // neighbour dist
-		100, // max neighbours
-		100.f, // time horizon
-		100.f, // time horizon obst
-		Agent2D::DEFAULT_RADIUS * 1.2f, // radius
-		DEFAULT_VELOCITY // maxSpeed
-	);
-	for (const auto& agent : agents)
-		sim->addAgent(RVO::Vector2(static_cast<float>(agent.coord.x), static_cast<float>(agent.coord.y)));
-}
-
-void Simulator2D::updatePreferredVelocities()
-{
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-	for (size_t i = 0, end = agents.size(); i != end; i++)
-	{
-		const auto& agent = agents[i];
-
-		RVO::Vector2 goal;
-		if (agent.goalPtr)
-			goal = *agent.goalPtr;
-		else
-			goal = agent.coord;
-
-		auto goalVector = goal - sim->getAgentPosition(i);
-		if (goalVector != RVO::Vector2(0, 0))
-			goalVector = RVO::normalize(goalVector) * DEFAULT_VELOCITY;
-		sim->setAgentPrefVelocity(i, goalVector);
-	}
-}
-
-bool Simulator2D::reachedGoal()
-{
-	/* Check if all agents have reached their goals. */
-	for (size_t i = 0, end = agents.size(); i != end; i++)
-		if (RVO::absSq(sim->getAgentPosition(i) - goals[i]) > sim->getAgentRadius(i) * sim->getAgentRadius(i))
-			return false;
-	return true;
-}
+//bool Simulator2D::reachedGoal()
+//{
+//	/* Check if all agents have reached their goals. */
+//	for (size_t i = 0, end = agents.size(); i != end; i++)
+//		if (RVO::absSq(sim.getAgentPosition(i) - goals[i]) > sim.getAgentRadius(i) * sim.getAgentRadius(i))
+//			return false;
+//	return true;
+//}
 
 void Simulator2D::tryUpdateGraph()
 {
@@ -584,11 +574,6 @@ void Simulator2D::updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(Co
 {
 	HungarianAlgorithm HungAlgo;
 	std::vector<int> assignment;
-
-	auto
-		nAgents = agents.size(),
-		nGoals = goals.size();
-
 	auto cost = HungAlgo.Solve(costMatrix, assignment);
 	if (distanceFunctionUsingType == DistanceFunctionsEnum::SumOfEachEdgeDistance)
 	{
@@ -604,6 +589,11 @@ void Simulator2D::updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(Co
 	if (needsToUpdateMaxEdge)
 		currentMaxEdge = 0;
 
+
+	auto
+		nAgents = agents.size(),
+		nGoals = goals.size();
+
 	for (size_t agentIndex = 0; agentIndex != nAgents; agentIndex++)
 	{
 		auto& agent = agents[agentIndex];
@@ -615,7 +605,7 @@ void Simulator2D::updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(Co
 			double edgeCostSquared;
 			if (distanceFunctionUsingType == DistanceFunctionsEnum::SumOfEachEdgeDistance)
 			{
-				edgeCostSquared = distanceSquared(agents[agentIndex], goals[goalIndex]); // temos que calcular do mesmo jeito em todos os lugares para evitar erros de ponto flutuante
+				edgeCostSquared = distanceSquaredAgent(agents[agentIndex], goals[goalIndex]); // temos que calcular do mesmo jeito em todos os lugares para evitar erros de ponto flutuante
 				currentTotalSumOfEachEdgeDistanceSquared += edgeCostSquared;
 			}
 			else
@@ -670,7 +660,7 @@ Edges Simulator2D::getEdgesMinimizingBiggestEdgeAndUpdateInternalVariables()
 	std::set<double> uniqueEdgeCosts;
 	for (size_t agentIndex = 0; agentIndex != nAgents; agentIndex++)
 		for (size_t goalIndex = 0; goalIndex != nGoals; goalIndex++)
-			uniqueEdgeCosts.emplace(costMatrix[agentIndex][goalIndex] = distanceSquared(agents[agentIndex], goals[goalIndex])); // minimizar a maior distância / minimizar a maior distância ao quadrado dá na mesma. Mas o último é mais barato
+			uniqueEdgeCosts.emplace(costMatrix[agentIndex][goalIndex] = distanceSquaredAgent(agents[agentIndex], goals[goalIndex])); // minimizar a maior distância / minimizar a maior distância ao quadrado dá na mesma. Mas o último é mais barato
 	std::vector<double> sortedEdgeCosts(uniqueEdgeCosts.begin(), uniqueEdgeCosts.end());
 	size_t l = 0, r = sortedEdgeCosts.size();
 	Edges edgesOfBestMatching;
@@ -715,14 +705,12 @@ Agent2D::Agent2D(const Coord& coord, double radius, const sf::Color& color) :
 {
 }
 
-double distance(const Agent2D& agent, const Goal& goal)
+double distanceAgent(const Agent2D& agent, const Goal& goal)
 {
-	return sqrt(distanceSquared(agent, goal));
+	return sqrt(distanceSquaredAgent(agent, goal));
 }
 
-double distanceSquared(const Agent2D& agent, const Goal& goal)
+double distanceSquaredAgent(const Agent2D& agent, const Goal& goal)
 {
-	auto dx = agent.coord.x - goal.x;
-	auto dy = agent.coord.y - goal.y;
-	return dx * dx + dy * dy;
+	return distanceSquared(agent.coord, goal);
 }

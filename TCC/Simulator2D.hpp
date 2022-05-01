@@ -1,17 +1,21 @@
 #pragma once
 #include "Agent.hpp"
 #include "Goal.hpp"
+#include "NavigatorInterface.hpp"
 
 #define SIMULATOR_EXT "tcc"
 
 static constexpr wchar_t const* lFilterPatterns[] = { L"*." SIMULATOR_EXT};
 
-static const auto DEFAULT_VELOCITY = 20.f; // em metros/s
 
-double distance(const Agent2D& agent, const Goal& goal);
-double distanceSquared(const Agent2D& agent, const Goal& goal);
+double distanceAgent(const Agent2D& agent, const Goal& goal);
+double distanceSquaredAgent(const Agent2D& agent, const Goal& goal);
 typedef double(*DistanceFunc)(const Agent2D& agent, const Goal& goal);
 
+static constexpr auto DEFAULT_AGENT_MAX_VELOCITY = 20.f; // em metros/s
+//static constexpr auto DEFAULT_TICKS_PER_SECOND = 10;
+static constexpr auto DEFAULT_TICKS_PER_SECOND = 144;
+static constexpr float DEFAULT_TIME_STEP = 1.f / DEFAULT_TICKS_PER_SECOND;
 
 typedef std::vector<std::vector<double>> CostMatrix;
 typedef std::vector<std::pair<size_t, size_t>> Edges;
@@ -24,19 +28,20 @@ class Simulator2D
 	bool usingDistancesSquared;
 	void updateDistanceSquaredVars();
 	bool hasAtLeast1Edge();
-	void restartRVO2();
 
 	int tickRate;
 
 	sf::Font font;
+	
+	enum class NavigatorCheckbox
+	{
+		None,
+		rvo2,
+		CamposPotenciais
+	} curNavigator;
 
-	static constexpr auto TICKS_PER_SECOND = 144;
-	static constexpr float TIME_STEP = 1.f / TICKS_PER_SECOND;
-
-	void updatePreferredVelocities();
-	bool reachedGoal();
-
-	std::unique_ptr<RVO::RVOSimulator> sim;
+	std::unique_ptr<NavigatorInterface> navigator;
+	float navigatorLastTick;
 
 	typedef int DistanceFunctionsUnderlyingType;
 	enum class DistanceFunctionsEnum : DistanceFunctionsUnderlyingType
@@ -47,8 +52,8 @@ class Simulator2D
 	} distanceFunctionUsingType;
 	static constexpr DistanceFunc DISTANCE_FUNCTIONS[]
 	{
-		distance,
-		distanceSquared
+		distanceAgent,
+		distanceSquaredAgent
 	};
 	DistanceFunc distanceFuncUsingCallback;
 
@@ -79,7 +84,7 @@ class Simulator2D
 		Count
 	} metric;
 
-	sf::Clock clock;
+	sf::Clock globalClock;
 	std::deque<std::pair<const char*, sf::Time>> warnings;
 	void addMessage(const char* msg);
 
@@ -90,7 +95,6 @@ class Simulator2D
 	std::vector<Agent2D> agents;
 	std::vector<Goal> goals;
 	sf::CircleShape circle;
-	static constexpr auto DEFAULT_GOAL_RADIUS = 15.f;
 	sf::RenderWindow& window;
 	float zoomLevel;
 

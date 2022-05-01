@@ -10,14 +10,14 @@ inline void LOG_ELEM(const std::wstring& s)
 {
 	std::wcout << s;
 }
-inline void LOG_ERROR() {}
+inline void LOG() {}
 template<class First, class...Rest>
-void LOG_ERROR(First&& first, Rest&& ...rest)
+void LOG(First&& first, Rest&& ...rest)
 {
 	LOG_ELEM(first);
-	LOG_ERROR(rest...);
+	LOG(rest...);
 }
 
 #else
-#define LOG_ERROR
+#define LOG
 #endif
