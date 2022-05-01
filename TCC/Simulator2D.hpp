@@ -29,13 +29,16 @@ class Simulator2D
 	void updateDistanceSquaredVars();
 	bool hasAtLeast1Edge();
 
+	void createNavigator();
+
 	int tickRate;
 
 	sf::Font font;
+
+	bool editMode;
 	
 	enum class NavigatorCheckbox
 	{
-		None,
 		rvo2,
 		CamposPotenciais
 	} curNavigator;
@@ -98,9 +101,10 @@ class Simulator2D
 	sf::RenderWindow& window;
 	float zoomLevel;
 
-	int lastLeftX, lastLeftY;
 	int lastPxClickedX, lastPxClickedY;
-	int lastRightX, lastRightY;
+	bool
+		didNotMoveSinceLastLeftPress,
+		didNotMoveSinceLastRightPress;
 
 	float zoomFac;
 	void updateZoomFacAndViewSizeFromZoomLevel(sf::View& view);

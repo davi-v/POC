@@ -15,10 +15,10 @@ Coord NavigatorCamposPotenciais::getAttractionVec(const Coord& c1, const Coord& 
 	return off;
 }
 
-Coord NavigatorCamposPotenciais::getRepulsionVec(const Object& c1, const Object& c2)
+Coord NavigatorCamposPotenciais::getRepulsionVec(const Object& c1, const Object& c2, double distance)
 {
 	auto off = c1.cur - c2.cur;
-	auto d = distance(c1.cur, c2.cur) - (c1.radius + c2.radius);
+	auto d = distance - (c1.radius + c2.radius);
 	d = std::max(d, EPSILON); // caso os círculos estivessem colidindo, para não ter repulsão negativa que atrairia-os
 	return ARBITRARY_CONSTANT / square(d) * off;
 }
@@ -52,7 +52,9 @@ void NavigatorCamposPotenciais::tick()
 			if (it1 != it2)
 			{
 				const auto& e2 = *it2;
-				vec += getRepulsionVec(e1, e2);
+				auto d = distance(e1.cur, e2.cur);
+				if (d < maxRadius)
+					vec += getRepulsionVec(e1, e2, d);
 			}
 		//LOG(vec.x, ' ', vec.y, '\n');
 		e1.cur += vec * static_cast<double>(timeStep);
@@ -61,6 +63,9 @@ void NavigatorCamposPotenciais::tick()
 
 void NavigatorCamposPotenciais::draw()
 {
+	ImGui::DragFloat("Max Radius", &maxRadius, 1.0f, 0, std::numeric_limits<float>::max());
+	ImGui::Checkbox("Draw Radius", &drawRadius);
+
 	sf::CircleShape circle;
 
 	// destinations
@@ -92,6 +97,20 @@ void NavigatorCamposPotenciais::draw()
 			};
 			window.draw(vertices, 2, sf::Lines);
 		}
+
+	if (drawRadius)
+	{
+		circle.setFillColor(sf::Color(0, 0, 0, 0)); // a gente só liga pro alpha = 0
+		circle.setOutlineColor(sf::Color::Yellow);
+		circle.setOutlineThickness(-1); // -1 fica para dentro
+		PrepareCircle(circle, maxRadius);
+		for (const auto& agent : agents)
+		{
+			circle.setPosition(agent.cur);
+			window.draw(circle);
+		}
+		circle.setOutlineThickness(0);
+	}
 }
 
 void NavigatorCamposPotenciais::updateTimeStep(float timeStep)
@@ -101,6 +120,8 @@ void NavigatorCamposPotenciais::updateTimeStep(float timeStep)
 
 NavigatorCamposPotenciais::NavigatorCamposPotenciais(sf::RenderWindow& window) :
 	window(window),
-	timeStep(DEFAULT_TIME_STEP)
+	timeStep(DEFAULT_TIME_STEP),
+	maxRadius(DEFAULT_CAMPOS_POTENCIAIS_RADIUS),
+	drawRadius(false)
 {
 }

@@ -82,6 +82,8 @@ void Simulator2D::updateZoomFacAndViewSizeFromZoomLevel(sf::View& view)
 }
 
 Simulator2D::Simulator2D(sf::RenderWindow& window) :
+	editMode(true),
+	curNavigator(NavigatorCheckbox::rvo2),
 	tickRate(DEFAULT_TICKS_PER_SECOND),
 	distanceFunctionUsingType(DistanceFunctionsEnum::SumOfEachEdgeDistance),
 	distanceFuncUsingCallback(DISTANCE_FUNCTIONS[static_cast<DistanceFunctionsUnderlyingType>(distanceFunctionUsingType)]),
@@ -174,80 +176,63 @@ void Simulator2D::tickAndDraw()
 	}
 
 	ImGui::Begin("Settings");
+
 	{
 		std::string str;
 		str += "Agents: " + std::to_string(agents.size());
 		str += "\nGoals: " + std::to_string(goals.size());
 		ImGui::Text(str.c_str());
-		if (!navigator)
-			if (ImGui::Button("Clear"))
-				Clear(agents, goals);
 	}
-	if (hasAtLeast1Edge())
+
+	if (hasAtLeast1Edge() && ImGui::CollapsingHeader("Metrics"))
 	{
-		if (ImGui::CollapsingHeader("Metrics"))
+		if (!navigator)
 		{
-			if (!navigator)
-			{
-				static constexpr const char* METRIC_MESSAGES[] = {
-					"minimize biggest edge",
-					"minimize total sum of edges",
-					"minimize biggest edge then minimize total sum of edges"
-				};
-				if (ImGui::Combo("metric", reinterpret_cast<int*>(&metric), METRIC_MESSAGES, IM_ARRAYSIZE(METRIC_MESSAGES)))
-					updateGraph();
+			static constexpr const char* METRIC_MESSAGES[] = {
+				"minimize biggest edge",
+				"minimize total sum of edges",
+				"minimize biggest edge then minimize total sum of edges"
+			};
+			if (ImGui::Combo("metric", reinterpret_cast<int*>(&metric), METRIC_MESSAGES, IM_ARRAYSIZE(METRIC_MESSAGES)))
+				updateGraph();
 
-				// na métrica de apenas minimizar a maior aresta, não faz diferença se a distância considerada foi quadrática ou não
-				if (metric != Metric::MinimizeBiggestEdge)
-					if (ImGui::Checkbox("distances squared", &usingDistancesSquared))
-					{
-						updateDistanceSquaredVars();
-						updateGraph(); // já sabemos que o grafo tem pelo menos 1 aresta
-					}
-			}
-
-			std::string str;
-			str += "max edge: " + std::to_string(currentMaxEdge);
-			str += "\nsum of edges: " + std::to_string(currentTotalSumOfEachEdgeDistance);
-			str += "\nsum of each edge squared: " + std::to_string(currentTotalSumOfEachEdgeDistanceSquared);
-			ImGui::Text(str.c_str());
+			// na métrica de apenas minimizar a maior aresta, não faz diferença se a distância considerada foi quadrática ou não
+			if (metric != Metric::MinimizeBiggestEdge)
+				if (ImGui::Checkbox("distances squared", &usingDistancesSquared))
+				{
+					updateDistanceSquaredVars();
+					updateGraph(); // já sabemos que o grafo tem pelo menos 1 aresta
+				}
 		}
 
+		std::string str;
+		str += "max edge: " + std::to_string(currentMaxEdge);
+		str += "\nsum of edges: " + std::to_string(currentTotalSumOfEachEdgeDistance);
+		str += "\nsum of each edge squared: " + std::to_string(currentTotalSumOfEachEdgeDistanceSquared);
+		ImGui::Text(str.c_str());
+	}
+
+	if (ImGui::Checkbox("Edit Mode", &editMode))
+		if (editMode)
+			navigator.reset();
+		else
+			createNavigator();
+
+	if (editMode)
+	{
+		if (ImGui::Button("Clear"))
+			Clear(agents, goals);
+	}
+	else
+	{
 		static constexpr const char* SIMULATION_LOGIC[] = {
-			"None",
-			"rvo2",
-			"Campos Potenciais"
+		"rvo2",
+		"Campos Potenciais"
 		};
 		if (ImGui::Combo("Navigator", reinterpret_cast<int*>(&curNavigator), SIMULATION_LOGIC, IM_ARRAYSIZE(SIMULATION_LOGIC)))
-		{
-			switch (curNavigator)
-			{
-			case NavigatorCheckbox::rvo2:
-			{
-				navigator = std::make_unique<NavigatorRVO2>(window);
-			}
-			break;
-			case NavigatorCheckbox::CamposPotenciais:
-			{
-				navigator = std::make_unique<NavigatorCamposPotenciais>(window);
-			}
-			break;
-			default:
-			{
-				navigator.reset();
-			}
-			break;
-			}
-			if (navigator)
-				for (const auto& agent : agents)
-					navigator->addAgent(agent);
-		}
-	}
-	ImGui::End();
+			createNavigator();
 
-	if (navigator)
-	{
-		ImGui::Begin("Navigator Settings");
+		//ImGui::Begin("Navigator Settings");
 		ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 0, 256, "%d", ImGuiSliderFlags_AlwaysClamp);
 		ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
 		if (navigator->running)
@@ -259,21 +244,23 @@ void Simulator2D::tickAndDraw()
 				navigator->tick();
 			}
 
-			if (ImGui::Button("Stop"))
+			if (ImGui::Button("Pause"))
 				navigator->running = false;
 		}
 		else
 		{
-			if (ImGui::Button("Start"))
+			if (ImGui::Button("Play"))
 			{
 				navigator->running = true;
 				navigatorLastTick = globalClock.getElapsedTime().asSeconds();
 			}
 		}
 		ImGui::Checkbox("Draw Destination Lines", &navigator->drawDestinationLines);
-		ImGui::End();
 		navigator->draw();
+		//ImGui::End();
 	}
+
+	ImGui::End(); // Settings
 
 	// draw UI in screen space
 	sf::View curView = window.getView(); // to restore later
@@ -339,14 +326,14 @@ void Simulator2D::pollEvent(const sf::Event& event)
 			{
 			case sf::Mouse::Left:
 			{
-				lastLeftX = lastPxClickedX = data.x;
-				lastLeftY = lastPxClickedY = data.y;
+				lastPxClickedX = data.x;
+				lastPxClickedY = data.y;
+				didNotMoveSinceLastLeftPress = true;
 			}
 			break;
 			case sf::Mouse::Right:
 			{
-				lastRightX = data.x;
-				lastRightY = data.y;
+				didNotMoveSinceLastRightPress = true;
 			}
 			break;
 			}
@@ -354,6 +341,7 @@ void Simulator2D::pollEvent(const sf::Event& event)
 		break;
 		case sf::Event::MouseMoved:
 		{
+			didNotMoveSinceLastLeftPress = didNotMoveSinceLastRightPress = false;
 			if (lastPxClickedX != -1)
 			{
 				auto& data = event.mouseMove;
@@ -378,28 +366,30 @@ void Simulator2D::pollEvent(const sf::Event& event)
 				lastPxClickedX = -1; // no longer moving the scene
 				if (!navigator)
 				{
-					auto& x = event.mouseButton.x;
-					auto& y = event.mouseButton.y;
-					if (x == lastLeftX && y == lastLeftY)
+					if (didNotMoveSinceLastLeftPress)
 					{
+						auto& x = event.mouseButton.x;
+						auto& y = event.mouseButton.y;
 						auto coord = window.mapPixelToCoords({ x, y });
 						addAgent({ { static_cast<double>(coord.x), static_cast<double>(coord.y) } });
 					}
 				}
+				didNotMoveSinceLastLeftPress = false;
 			}
 			break;
 			case sf::Mouse::Right:
 			{
 				if (!navigator)
 				{
-					auto& x = event.mouseButton.x;
-					auto& y = event.mouseButton.y;
-					if (x == lastRightX && y == lastRightY)
+					if (didNotMoveSinceLastRightPress)
 					{
+						auto& x = event.mouseButton.x;
+						auto& y = event.mouseButton.y;
 						auto coord = window.mapPixelToCoords({ x, y });
 						addGoal({ static_cast<double>(coord.x), static_cast<double>(coord.y) });
 					}
 				}
+				didNotMoveSinceLastRightPress = false;
 			}
 			break;
 			}
@@ -507,6 +497,25 @@ bool Simulator2D::hasAtLeast1Edge()
 {
 	auto nGoals = goals.size();
 	return agents.size() >= nGoals && nGoals;
+}
+
+void Simulator2D::createNavigator()
+{
+	switch (curNavigator)
+	{
+	case NavigatorCheckbox::rvo2:
+	{
+		navigator = std::make_unique<NavigatorRVO2>(window);
+	}
+	break;
+	case NavigatorCheckbox::CamposPotenciais:
+	{
+		navigator = std::make_unique<NavigatorCamposPotenciais>(window);
+	}
+	break;
+	}
+	for (const auto& agent : agents)
+		navigator->addAgent(agent);
 }
 
 //bool Simulator2D::reachedGoal()

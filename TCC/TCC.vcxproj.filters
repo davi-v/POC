@@ -24,19 +24,19 @@
       <Filter>Simulator2D\Agent2D</Filter>
     </ClCompile>
     <ClCompile Include="NavigatorRVO2.cpp">
-      <Filter>Simulator2D\Simulators\rvo2</Filter>
+      <Filter>Simulator2D\Navigators\rvo2</Filter>
     </ClCompile>
     <ClCompile Include="DrawUtil.cpp">
       <Filter>DrawUtil</Filter>
     </ClCompile>
     <ClCompile Include="NavigatorCamposPotenciais.cpp">
-      <Filter>Simulator2D\Simulators\Campos Potenciais</Filter>
-    </ClCompile>
-    <ClCompile Include="NavigatorInterface.cpp">
-      <Filter>Simulator2D\Simulators\NavigatorInterface</Filter>
+      <Filter>Simulator2D\Navigators\Campos Potenciais</Filter>
     </ClCompile>
     <ClCompile Include="Goal.cpp">
       <Filter>Simulator2D\Goal</Filter>
+    </ClCompile>
+    <ClCompile Include="NavigatorInterface.cpp">
+      <Filter>Simulator2D\Navigators</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -64,15 +64,6 @@
     <Filter Include="Simulator2D\Goal">
       <UniqueIdentifier>{a113a22f-4637-423d-b9b3-c692e2fbea44}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Simulator2D\Simulators">
-      <UniqueIdentifier>{5e006226-520d-475e-b6d5-0003b86fb9e4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\Simulators\rvo2">
-      <UniqueIdentifier>{835b72e5-305f-4f38-aae4-bf10e46cb886}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\Simulators\Campos Potenciais">
-      <UniqueIdentifier>{10ee16e9-461a-4ade-84ba-edc88c8c4c78}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Simulator2D\Agent2D">
       <UniqueIdentifier>{2f2e9312-6d06-4fba-a3c4-5ed6673323e2}</UniqueIdentifier>
     </Filter>
@@ -82,11 +73,17 @@
     <Filter Include="DrawUtil\Pch">
       <UniqueIdentifier>{6ec6d48e-35a4-4953-8f6b-b285ed91d1c7}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Simulator2D\Simulators\NavigatorInterface">
-      <UniqueIdentifier>{24954597-02cb-49e1-8b12-3abf67256ccb}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Simulator2D\vec2">
       <UniqueIdentifier>{f9be909d-ae22-4f69-b89e-0cf25fbe49d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Navigators">
+      <UniqueIdentifier>{5e006226-520d-475e-b6d5-0003b86fb9e4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Navigators\Campos Potenciais">
+      <UniqueIdentifier>{10ee16e9-461a-4ade-84ba-edc88c8c4c78}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Navigators\rvo2">
+      <UniqueIdentifier>{835b72e5-305f-4f38-aae4-bf10e46cb886}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -123,16 +120,16 @@
       <Filter>Simulator2D\Goal</Filter>
     </ClInclude>
     <ClInclude Include="NavigatorRVO2.hpp">
-      <Filter>Simulator2D\Simulators\rvo2</Filter>
+      <Filter>Simulator2D\Navigators\rvo2</Filter>
     </ClInclude>
     <ClInclude Include="NavigatorCamposPotenciais.hpp">
-      <Filter>Simulator2D\Simulators\Campos Potenciais</Filter>
+      <Filter>Simulator2D\Navigators\Campos Potenciais</Filter>
     </ClInclude>
     <ClInclude Include="DrawUtil.hpp">
       <Filter>DrawUtil</Filter>
     </ClInclude>
     <ClInclude Include="NavigatorInterface.hpp">
-      <Filter>Simulator2D\Simulators\NavigatorInterface</Filter>
+      <Filter>Simulator2D\Navigators</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -45,7 +45,6 @@ void NavigatorRVO2::tick()
 	}
 
 	sim.doStep();
-	LOG(sim.getAgentVelocity(0), '\n');
 }
 
 void NavigatorRVO2::draw()

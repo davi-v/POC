@@ -14,7 +14,12 @@ class NavigatorCamposPotenciais : public NavigatorInterface
 		Coord cur, dst;
 	};
 	std::vector<Object> agents;
-	Coord getRepulsionVec(const Object& c1, const Object& c2);
+	// @distance : precomputed distance between the centers
+	Coord getRepulsionVec(const Object& c1, const Object& c2, double distance);
+
+	bool drawRadius;
+	float maxRadius;
+	static constexpr float DEFAULT_CAMPOS_POTENCIAIS_RADIUS = Agent2D::DEFAULT_RADIUS * 6;
 
 	void addAgent(const Agent2D& agent) override;
 	void tick() override;
