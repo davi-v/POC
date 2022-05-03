@@ -70,7 +70,7 @@ void NavigatorCamposPotenciais::draw()
 
 	// destinations
 	circle.setFillColor(sf::Color::Green);
-	PrepareCircle(circle, DEFAULT_GOAL_RADIUS);
+	PrepareCircleRadius(circle, DEFAULT_GOAL_RADIUS);
 	for (const auto& agent : agents)
 	{
 		circle.setPosition(agent.dst);
@@ -81,7 +81,7 @@ void NavigatorCamposPotenciais::draw()
 	circle.setFillColor(sf::Color::Red);
 	for (const auto& agent : agents)
 	{
-		PrepareCircle(circle, static_cast<float>(agent.radius));
+		PrepareCircleRadius(circle, static_cast<float>(agent.radius));
 		circle.setPosition(agent.cur);
 		window.draw(circle);
 	}
@@ -103,7 +103,7 @@ void NavigatorCamposPotenciais::draw()
 		circle.setFillColor(sf::Color(0, 0, 0, 0)); // a gente só liga pro alpha = 0
 		circle.setOutlineColor(sf::Color::Yellow);
 		circle.setOutlineThickness(-1); // -1 fica para dentro
-		PrepareCircle(circle, maxRadius);
+		PrepareCircleRadius(circle, maxRadius);
 		for (const auto& agent : agents)
 		{
 			circle.setPosition(agent.cur);
@@ -122,6 +122,6 @@ NavigatorCamposPotenciais::NavigatorCamposPotenciais(sf::RenderWindow& window) :
 	window(window),
 	timeStep(DEFAULT_TIME_STEP),
 	maxRadius(DEFAULT_CAMPOS_POTENCIAIS_RADIUS),
-	drawRadius(false)
+	drawRadius(true)
 {
 }

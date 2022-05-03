@@ -11,9 +11,3 @@ std::string TimeToDay(time_t t);
 std::string TimeToHour(time_t t);
 
 std::string GetUniqueNameWithCurrentTime(const std::string& prepend, const std::string& ext);
-
-template<class T>
-auto square(T a)
-{
-	return a * a;
-}

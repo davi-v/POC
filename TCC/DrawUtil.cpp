@@ -1,7 +1,7 @@
 #include "Pch.hpp"
 #include "DrawUtil.hpp"
 
-void PrepareCircle(sf::CircleShape& circle, float r)
+void PrepareCircleRadius(sf::CircleShape& circle, float r)
 {
 	circle.setRadius(r);
 	circle.setOrigin(r, r);

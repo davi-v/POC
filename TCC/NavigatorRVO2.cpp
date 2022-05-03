@@ -51,7 +51,7 @@ void NavigatorRVO2::draw()
 {
 	sf::CircleShape circle;
 	circle.setFillColor(sf::Color::Green);
-	PrepareCircle(circle, DEFAULT_GOAL_RADIUS);
+	PrepareCircleRadius(circle, DEFAULT_GOAL_RADIUS);
 
 	auto nAgents = sim.getNumAgents();
 
@@ -69,7 +69,7 @@ void NavigatorRVO2::draw()
 	circle.setFillColor(sf::Color::Red);
 	for (size_t i = 0; i != nAgents; i++)
 	{
-		PrepareCircle(circle, sim.getAgentRadius(i) / EXTRA);
+		PrepareCircleRadius(circle, sim.getAgentRadius(i) / EXTRA);
 		const auto& coord = sim.getAgentPosition(i);
 		circle.setPosition({ coord.x(), coord.y() });
 		window.draw(circle);

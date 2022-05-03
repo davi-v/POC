@@ -13,8 +13,7 @@ double distanceSquaredAgent(const Agent2D& agent, const Goal& goal);
 typedef double(*DistanceFunc)(const Agent2D& agent, const Goal& goal);
 
 static constexpr auto DEFAULT_AGENT_MAX_VELOCITY = 20.f; // em metros/s
-//static constexpr auto DEFAULT_TICKS_PER_SECOND = 10;
-static constexpr auto DEFAULT_TICKS_PER_SECOND = 144;
+static constexpr auto DEFAULT_TICKS_PER_SECOND = 144; // >= 1
 static constexpr float DEFAULT_TIME_STEP = 1.f / DEFAULT_TICKS_PER_SECOND;
 
 typedef std::vector<std::vector<double>> CostMatrix;
@@ -32,10 +31,18 @@ class Simulator2D
 	void createNavigator();
 
 	int tickRate;
+	float curTimeStep; // em segundos
 
 	sf::Font font;
 
 	bool editMode;
+
+	enum class LeftClickAction
+	{
+		Select,
+		PlaceAgent,
+		PlaceGoal
+	} leftClickAction;
 	
 	enum class NavigatorCheckbox
 	{
@@ -101,10 +108,49 @@ class Simulator2D
 	sf::RenderWindow& window;
 	float zoomLevel;
 
-	int lastPxClickedX, lastPxClickedY;
-	bool
-		didNotMoveSinceLastLeftPress,
-		didNotMoveSinceLastRightPress;
+	int lastPxClickedX, lastPxClickedY; // for moving the view
+
+	struct LeftClickInterface
+	{
+		virtual void pollEvent(const sf::Event& event) = 0;
+		Simulator2D& sim;
+		LeftClickInterface(Simulator2D& sim);
+		virtual void draw();
+		virtual bool canMoveView();
+	};
+
+	struct SelectAction : LeftClickInterface
+	{
+		void pollEvent(const sf::Event& event) override;
+		void draw() override;
+		bool canMoveView() override;
+		SelectAction(Simulator2D& sim);
+		Agent2D* curAgentSelected;
+		Coord curOff; // distância de onde clicamos até o centro do círculo
+		bool isHoldingLeftClick;
+	};
+
+	struct AddItemAction : LeftClickInterface
+	{
+		void pollEvent(const sf::Event& event) override;
+		AddItemAction(Simulator2D& sim);
+		bool didNotMoveSinceLastPress;
+
+		// world coordinates x, y
+		virtual void placeItem(double x, double y) = 0;
+	};
+	struct AddAgentAction : AddItemAction
+	{
+		void placeItem(double x, double y) override;
+		AddAgentAction(Simulator2D& sim);
+	};
+	struct AddGoalAction : AddItemAction
+	{
+		void placeItem(double x, double y) override;
+		AddGoalAction(Simulator2D& sim);
+	};
+
+	std::unique_ptr<LeftClickInterface> leftClickInterface;
 
 	float zoomFac;
 	void updateZoomFacAndViewSizeFromZoomLevel(sf::View& view);
@@ -115,6 +161,6 @@ public:
 	Simulator2D(sf::RenderWindow& window);
 	void addAgent(const Agent2D& agent);
 	void addGoal(const Goal& coord);
-	void tickAndDraw();
+	void draw();
 	void pollEvent(const sf::Event& event);
 };

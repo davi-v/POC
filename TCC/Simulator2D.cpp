@@ -84,10 +84,11 @@ void Simulator2D::updateZoomFacAndViewSizeFromZoomLevel(sf::View& view)
 Simulator2D::Simulator2D(sf::RenderWindow& window) :
 	editMode(true),
 	curNavigator(NavigatorCheckbox::rvo2),
+	leftClickAction(LeftClickAction::Select),
 	tickRate(DEFAULT_TICKS_PER_SECOND),
+	curTimeStep(DEFAULT_TIME_STEP),
 	distanceFunctionUsingType(DistanceFunctionsEnum::SumOfEachEdgeDistance),
 	distanceFuncUsingCallback(DISTANCE_FUNCTIONS[static_cast<DistanceFunctionsUnderlyingType>(distanceFunctionUsingType)]),
-
 	window(window),
 	metric(Metric::MinimizeTotalSumOfEdges),
 	zoomLevel(DEFAULT_ZOOM_LEVEL),
@@ -103,6 +104,8 @@ Simulator2D::Simulator2D(sf::RenderWindow& window) :
 
 	textPopUpMessages.setFont(font);
 	textPopUpMessages.setFillColor(sf::Color::Red);
+
+	leftClickInterface = std::make_unique<SelectAction>(*this);
 }
 
 void Simulator2D::addAgent(const Agent2D& agent)
@@ -130,25 +133,20 @@ static void HelpMarker(const char* desc)
 	}
 }
 
-void Simulator2D::tickAndDraw()
+void Simulator2D::draw()
 {
-	if (!navigator)
+	if (!navigator) // draw world in edit mode
 	{
 		for (size_t i = 0, end = agents.size(); i != end; i++)
 		{
 			const auto& agent = agents[i];
 
 			circle.setFillColor(agent.color);
-			PrepareCircle(circle, static_cast<float>(agent.radius));
+			PrepareCircleRadius(circle, static_cast<float>(agent.radius));
 
-			if (navigator)
-				navigator->draw();
-			else
-			{
-				const auto& coord = agent.coord;
-				circle.setPosition(coord);
-				window.draw(circle);
-			}
+			const auto& coord = agent.coord;
+			circle.setPosition(coord);
+			window.draw(circle);
 
 			if (agent.goalPtr)
 			{
@@ -167,7 +165,7 @@ void Simulator2D::tickAndDraw()
 		}
 
 		circle.setFillColor(DEFAULT_GOAL_COLOR);
-		PrepareCircle(circle, DEFAULT_GOAL_RADIUS);
+		PrepareCircleRadius(circle, DEFAULT_GOAL_RADIUS);
 		for (const auto& goal : goals)
 		{
 			circle.setPosition(goal);
@@ -176,6 +174,7 @@ void Simulator2D::tickAndDraw()
 	}
 
 	ImGui::Begin("Settings");
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
 	{
 		std::string str;
@@ -220,6 +219,33 @@ void Simulator2D::tickAndDraw()
 
 	if (editMode)
 	{
+		static constexpr const char* LEFT_CLICK_ACTION[] = {
+		"Select",
+		"Place Agent",
+		"Place Goal",
+		};
+		if (ImGui::Combo("Left Click Action", reinterpret_cast<int*>(&leftClickAction), LEFT_CLICK_ACTION, IM_ARRAYSIZE(LEFT_CLICK_ACTION)))
+		{
+			switch (leftClickAction)
+			{
+			case LeftClickAction::Select:
+			{
+				leftClickInterface = std::make_unique<SelectAction>(*this);
+			}
+			break;
+			case LeftClickAction::PlaceAgent:
+			{
+				leftClickInterface = std::make_unique<AddAgentAction>(*this);
+			}
+			break;
+			case LeftClickAction::PlaceGoal:
+			{
+				leftClickInterface = std::make_unique<AddGoalAction>(*this);
+			}
+			break;
+			}
+		}
+
 		if (ImGui::Button("Clear"))
 			Clear(agents, goals);
 	}
@@ -232,13 +258,17 @@ void Simulator2D::tickAndDraw()
 		if (ImGui::Combo("Navigator", reinterpret_cast<int*>(&curNavigator), SIMULATION_LOGIC, IM_ARRAYSIZE(SIMULATION_LOGIC)))
 			createNavigator();
 
-		//ImGui::Begin("Navigator Settings");
-		ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 0, 256, "%d", ImGuiSliderFlags_AlwaysClamp);
+		if (ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 1, 256, "%d", ImGuiSliderFlags_AlwaysClamp))
+		{
+			curTimeStep = 1.f / tickRate;
+			navigator->updateTimeStep(curTimeStep);
+		}
 		ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
+
 		if (navigator->running)
 		{
 			auto curTime = globalClock.getElapsedTime().asSeconds();
-			if (curTime - navigatorLastTick >= DEFAULT_TIME_STEP)
+			if (curTime - navigatorLastTick >= curTimeStep)
 			{
 				navigatorLastTick = curTime;
 				navigator->tick();
@@ -259,6 +289,8 @@ void Simulator2D::tickAndDraw()
 		navigator->draw();
 		//ImGui::End();
 	}
+
+	leftClickInterface->draw();
 
 	ImGui::End(); // Settings
 
@@ -298,6 +330,8 @@ void Simulator2D::pollEvent(const sf::Event& event)
 	// I want to handle mouse events only if not hovering a menu
 	if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
 	{
+		leftClickInterface->pollEvent(event);
+
 		switch (event.type)
 		{
 		case sf::Event::MouseWheelScrolled:
@@ -328,12 +362,6 @@ void Simulator2D::pollEvent(const sf::Event& event)
 			{
 				lastPxClickedX = data.x;
 				lastPxClickedY = data.y;
-				didNotMoveSinceLastLeftPress = true;
-			}
-			break;
-			case sf::Mouse::Right:
-			{
-				didNotMoveSinceLastRightPress = true;
 			}
 			break;
 			}
@@ -341,20 +369,20 @@ void Simulator2D::pollEvent(const sf::Event& event)
 		break;
 		case sf::Event::MouseMoved:
 		{
-			didNotMoveSinceLastLeftPress = didNotMoveSinceLastRightPress = false;
-			if (lastPxClickedX != -1)
-			{
-				auto& data = event.mouseMove;
-				auto& newX = data.x;
-				auto& newY = data.y;
+			if (leftClickInterface->canMoveView())
+				if (lastPxClickedX != -1) // if we are holding left click, move view of the world
+				{
+					auto& data = event.mouseMove;
+					auto& newX = data.x;
+					auto& newY = data.y;
 
-				sf::View view = window.getView();
-				view.move((lastPxClickedX - newX) * zoomFac, (lastPxClickedY - newY) * zoomFac);
-				window.setView(view);
+					sf::View view = window.getView();
+					view.move((lastPxClickedX - newX) * zoomFac, (lastPxClickedY - newY) * zoomFac);
+					window.setView(view);
 
-				lastPxClickedX = newX;
-				lastPxClickedY = newY;
-			}
+					lastPxClickedX = newX;
+					lastPxClickedY = newY;
+				}
 		}
 		break;
 		case sf::Event::MouseButtonReleased:
@@ -364,32 +392,6 @@ void Simulator2D::pollEvent(const sf::Event& event)
 			case sf::Mouse::Left:
 			{
 				lastPxClickedX = -1; // no longer moving the scene
-				if (!navigator)
-				{
-					if (didNotMoveSinceLastLeftPress)
-					{
-						auto& x = event.mouseButton.x;
-						auto& y = event.mouseButton.y;
-						auto coord = window.mapPixelToCoords({ x, y });
-						addAgent({ { static_cast<double>(coord.x), static_cast<double>(coord.y) } });
-					}
-				}
-				didNotMoveSinceLastLeftPress = false;
-			}
-			break;
-			case sf::Mouse::Right:
-			{
-				if (!navigator)
-				{
-					if (didNotMoveSinceLastRightPress)
-					{
-						auto& x = event.mouseButton.x;
-						auto& y = event.mouseButton.y;
-						auto coord = window.mapPixelToCoords({ x, y });
-						addGoal({ static_cast<double>(coord.x), static_cast<double>(coord.y) });
-					}
-				}
-				didNotMoveSinceLastRightPress = false;
 			}
 			break;
 			}
@@ -722,4 +724,173 @@ double distanceAgent(const Agent2D& agent, const Goal& goal)
 double distanceSquaredAgent(const Agent2D& agent, const Goal& goal)
 {
 	return distanceSquared(agent.coord, goal);
+}
+
+void Simulator2D::SelectAction::pollEvent(const sf::Event& event)
+{
+	switch (event.type)
+	{
+	case sf::Event::MouseButtonPressed:
+	{
+		switch (event.mouseButton.button)
+		{
+		case sf::Mouse::Left:
+		{
+			isHoldingLeftClick = true;
+			if (curAgentSelected)
+			{
+				auto& agent = *curAgentSelected;
+				auto coordFloat = sim.window.mapPixelToCoords({ event.mouseButton.x, event.mouseButton.y });
+				Coord coordDouble(static_cast<double>(coordFloat.x), static_cast<double>(coordFloat.y));
+				curOff = agent.coord - coordDouble;
+			}
+		}
+		break;
+		}
+	}
+	break;
+	case sf::Event::MouseButtonReleased:
+	{
+		switch (event.mouseButton.button)
+		{
+		case sf::Mouse::Left:
+		{
+			isHoldingLeftClick = false;
+		}
+		break;
+		}
+	}
+	break;
+	case sf::Event::MouseMoved:
+	{
+		auto& x = event.mouseMove.x;
+		auto& y = event.mouseMove.y;
+		auto coordFloat = sim.window.mapPixelToCoords({ x, y });
+		Coord coordDouble(static_cast<double>(coordFloat.x), static_cast<double>(coordFloat.y));
+		if (isHoldingLeftClick && curAgentSelected) // move agent
+		{
+			auto& agent = *curAgentSelected;
+			agent.coord = coordDouble + curOff;
+			sim.tryUpdateGraph();
+		}
+		else
+		{
+			curAgentSelected = nullptr;
+			for (auto& agent : sim.agents)
+				if (square(agent.coord - coordDouble) <= square(agent.radius))
+				{
+					curAgentSelected = &agent;
+				}
+		}
+	}
+	break;
+	}
+}
+
+void Simulator2D::SelectAction::draw()
+{
+	if (curAgentSelected)
+	{
+		const auto& agent = *curAgentSelected;
+		sf::CircleShape c;
+		c.setFillColor(sf::Color(20, 40, 200, 140));
+		c.setPosition(agent.coord);
+		PrepareCircleRadius(c, static_cast<float>(agent.radius));
+		sim.window.draw(c);
+	}
+}
+
+bool Simulator2D::SelectAction::canMoveView()
+{
+	return !curAgentSelected;
+}
+
+Simulator2D::SelectAction::SelectAction(Simulator2D& sim) :
+	LeftClickInterface(sim),
+	curAgentSelected(nullptr),
+	isHoldingLeftClick(false)
+{
+}
+
+Simulator2D::AddAgentAction::AddAgentAction(Simulator2D& sim) :
+	AddItemAction(sim)
+{
+}
+
+void Simulator2D::AddAgentAction::placeItem(double x, double y)
+{
+	sim.addAgent({ { x, y } });
+}
+
+void Simulator2D::AddGoalAction::placeItem(double x, double y)
+{
+	sim.addGoal({ x, y });
+}
+
+Simulator2D::AddGoalAction::AddGoalAction(Simulator2D& sim) :
+	AddItemAction(sim)
+{
+}
+
+Simulator2D::LeftClickInterface::LeftClickInterface(Simulator2D& sim) :
+	sim(sim)
+{
+}
+
+void Simulator2D::LeftClickInterface::draw()
+{
+}
+
+bool Simulator2D::LeftClickInterface::canMoveView()
+{
+	return true;
+}
+
+void Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
+{
+	switch (event.type)
+	{
+	case sf::Event::MouseButtonPressed:
+	{
+		switch (event.mouseButton.button)
+		{
+		case sf::Mouse::Left:
+		{
+			didNotMoveSinceLastPress = true;
+		}
+		break;
+		}
+	}
+	break;
+	case sf::Event::MouseButtonReleased:
+	{
+		switch (event.mouseButton.button)
+		{
+		case sf::Mouse::Left:
+		{
+			if (didNotMoveSinceLastPress)
+				if (!sim.navigator)
+				{
+					auto& x = event.mouseButton.x;
+					auto& y = event.mouseButton.y;
+					auto coord = sim.window.mapPixelToCoords({ x, y });
+					placeItem(static_cast<double>(coord.x), static_cast<double>(coord.y));
+				}
+		}
+		break;
+		}
+	}
+	break;
+	case sf::Event::MouseMoved:
+	{
+		didNotMoveSinceLastPress = false;
+	}
+	break;
+	}
+}
+
+Simulator2D::AddItemAction::AddItemAction(Simulator2D& sim) :
+	LeftClickInterface(sim),
+	didNotMoveSinceLastPress(true)
+{
 }

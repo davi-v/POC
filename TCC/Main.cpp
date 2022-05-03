@@ -76,7 +76,7 @@ int main()
 		ImGui::SFML::Update(window, c.restart());
 
 		window.clear();
-		simulator.tickAndDraw();
+		simulator.draw();
 
 		ImGui::SFML::Render(window);
 		window.display();
