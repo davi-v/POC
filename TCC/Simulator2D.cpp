@@ -310,17 +310,19 @@ void Simulator2D::draw()
 			curTimeStep = 1.f / tickRate;
 			navigator->updateTimeStep(curTimeStep);
 		}
-		ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation. Since it's run in the same thread as the rendering thread, it's clipped by the framerate");
+		ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
 
 		if (navigator->running)
 		{
-			auto curTime = globalClock.getElapsedTime().asSeconds();
-			if (curTime - navigatorLastTick >= curTimeStep)
+			float timestemp;
+			auto updateTimeStemp = [&]() -> float&
 			{
-				navigatorLastTick = curTime;
-				static sf::Clock c;
+				return timestemp = globalClock.getElapsedTime().asSeconds();
+			};
+			while (updateTimeStemp() - navigatorLastTick >= curTimeStep)
+			{
 				navigator->tick();
-				LOG(1./c.restart().asSeconds(), '\n');
+				navigatorLastTick = timestemp;
 			}
 
 			if (ImGui::Button("Pause"))
