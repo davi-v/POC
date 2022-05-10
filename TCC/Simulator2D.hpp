@@ -2,11 +2,11 @@
 #include "Agent.hpp"
 #include "Goal.hpp"
 #include "NavigatorInterface.hpp"
+#include "SelectableEdge.hpp"
 
 #define SIMULATOR_EXT "tcc"
 
 static constexpr wchar_t const* lFilterPatterns[] = { L"*." SIMULATOR_EXT};
-
 
 double distanceAgent(const Agent2D& agent, const Goal& goal);
 double distanceSquaredAgent(const Agent2D& agent, const Goal& goal);
@@ -24,24 +24,38 @@ class Simulator2D
 	static constexpr float DEFAULT_ZOOM_LEVEL = 0;
 	static const sf::Color DEFAULT_GOAL_COLOR;
 
+	bool canSaveFile();
+	void saveFile();
+	void tryOpenFile();
+
+	bool notHoveringUI();
+
+	void defaultDraw();
+
 	bool usingDistancesSquared;
 	void updateDistanceSquaredVars();
 	bool hasAtLeast1Edge();
 
-	void createNavigator();
+	void createSelectedNavigator();
 
 	int tickRate;
 	float curTimeStep; // em segundos
 
 	sf::Font font;
 
-	bool editMode;
+	enum class EditModeType
+	{
+		Free,
+		Metric,
+		Navigation
+	} editModeType;
 
 	enum class LeftClickAction
 	{
 		Select,
 		PlaceAgent,
-		PlaceGoal
+		PlaceGoal,
+		AddEdge
 	} leftClickAction;
 	
 	enum class NavigatorCheckbox
@@ -67,11 +81,8 @@ class Simulator2D
 	};
 	DistanceFunc distanceFuncUsingCallback;
 
-	// handles graph with no edges
-	void tryUpdateGraph();
-
 	// doesn't handle graph with no edges
-	void updateGraph();
+	void updateGraphEdges();
 
 	double currentMaxEdge, currentMaxEdgeSquared;
 	double currentTotalSumOfEachEdgeDistance, currentTotalSumOfEachEdgeDistanceSquared;
@@ -101,22 +112,50 @@ class Simulator2D
 	bool loadAgentsAndGoals(const std::wstring& path);
 	void saveAgentsAndGoals(const std::wstring& path);
 
+	double getDistanceSquaredToEdge(const SelectableEdge& e, const vec2d& c);
+
 	sf::Text textPopUpMessages;
-	std::vector<Agent2D> agents;
-	std::vector<Goal> goals;
-	sf::CircleShape circle;
-	sf::RenderWindow& window;
+	std::vector<std::unique_ptr<Agent2D>> agents; // usamos ponteiros para não mudar o endereço do objeto apontado quando o vetor é resized
+	std::vector<std::unique_ptr<Goal>> goals;
+	bool usingOutline;
 	float zoomLevel;
+
+	vec2d getCoordDouble(int x, int y);
+	void addEdge(Agent2D& agent, const Goal& goal);
 
 	int lastPxClickedX, lastPxClickedY; // for moving the view
 
 	struct LeftClickInterface
 	{
-		virtual void pollEvent(const sf::Event& event) = 0;
 		Simulator2D& sim;
 		LeftClickInterface(Simulator2D& sim);
+
 		virtual void draw();
 		virtual bool canMoveView();
+
+		virtual void pollEvent(const sf::Event& event) = 0;
+	};
+
+	class AddEdgeAction : public LeftClickInterface
+	{
+		void clear();
+		ElemSelected* elemHoveredPtr;
+		enum class Type
+		{
+			Agent,
+			Goal
+		} typeHovered;
+
+		Agent2D* curAgent;
+		Goal* curGoal;
+
+		bool goalSelected;
+
+		void pollEvent(const sf::Event& event) override;
+		void draw() override;
+
+	public:
+		AddEdgeAction(Simulator2D& sim);
 	};
 
 	struct SelectAction : LeftClickInterface
@@ -125,8 +164,10 @@ class Simulator2D
 		void draw() override;
 		bool canMoveView() override;
 		SelectAction(Simulator2D& sim);
-		Agent2D* curAgentSelected;
-		Coord curOff; // distância de onde clicamos até o centro do círculo
+
+		ElemSelected* elemSelected;
+
+		vec2d curOff; // distância de onde clicamos até o centro do círculo
 		bool isHoldingLeftClick;
 	};
 
@@ -163,4 +204,7 @@ public:
 	void addGoal(const Goal& coord);
 	void draw();
 	void pollEvent(const sf::Event& event);
+
+	sf::RenderWindow& window;
+	sf::CircleShape circle;
 };

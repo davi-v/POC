@@ -7,15 +7,15 @@
 
 static constexpr double ARBITRARY_CONSTANT = 3;
 
-Coord NavigatorCamposPotenciais::getAttractionVec(const Coord& c1, const Coord& c2)
+vec2d NavigatorCamposPotenciais::getAttractionVec(const vec2d& c1, const vec2d& c2)
 {
 	auto off = c2 - c1;
 	if (off.tryNormalize())
-		off *= DEFAULT_AGENT_MAX_VELOCITY;
+		off *= maxVel;
 	return off;
 }
 
-Coord NavigatorCamposPotenciais::getRepulsionVec(const Object& c1, const Object& c2, double distance)
+vec2d NavigatorCamposPotenciais::getRepulsionVec(const Object& c1, const Object& c2, double distance)
 {
 	auto off = c1.cur - c2.cur;
 	auto d = distance - (c1.radius + c2.radius);
@@ -25,9 +25,9 @@ Coord NavigatorCamposPotenciais::getRepulsionVec(const Object& c1, const Object&
 
 void NavigatorCamposPotenciais::addAgent(const Agent2D& agent)
 {
-	Coord dst;
+	vec2d dst;
 	if (const auto& goalPtr = agent.goalPtr)
-		dst = *goalPtr;
+		dst = goalPtr->coord;
 	else
 		dst = agent.coord;
 
@@ -64,11 +64,13 @@ void NavigatorCamposPotenciais::tick()
 void NavigatorCamposPotenciais::draw()
 {
 	ImGui::DragFloat("Max Radius", &maxRadius, 1.0f, 0, std::numeric_limits<float>::max());
+	ImGui::InputDouble("Max Vel", &maxVel);
 	ImGui::Checkbox("Draw Radius", &drawRadius);
 
-	sf::CircleShape circle;
+	auto& window = simulator2D.window;
 
 	// destinations
+	auto& circle = simulator2D.circle;
 	circle.setFillColor(sf::Color::Green);
 	PrepareCircleRadius(circle, DEFAULT_GOAL_RADIUS);
 	for (const auto& agent : agents)
@@ -118,8 +120,9 @@ void NavigatorCamposPotenciais::updateTimeStep(float timeStep)
 	this->timeStep = timeStep;
 }
 
-NavigatorCamposPotenciais::NavigatorCamposPotenciais(sf::RenderWindow& window) :
-	window(window),
+NavigatorCamposPotenciais::NavigatorCamposPotenciais(Simulator2D& simulator2D) :
+	maxVel(DEFAULT_AGENT_MAX_VELOCITY),
+	simulator2D(simulator2D),
 	timeStep(DEFAULT_TIME_STEP),
 	maxRadius(DEFAULT_CAMPOS_POTENCIAIS_RADIUS),
 	drawRadius(true)

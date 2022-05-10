@@ -1,21 +1,24 @@
 #pragma once
 #include "NavigatorInterface.hpp"
+#include "Simulator2D.hpp"
 
 class NavigatorCamposPotenciais : public NavigatorInterface
 {
 	float timeStep;
-	sf::RenderWindow& window;
+	Simulator2D& simulator2D;
 
-	Coord getAttractionVec(const Coord& c1, const Coord& c2);
+	double maxVel;
+
+	vec2d getAttractionVec(const vec2d& c1, const vec2d& c2);
 
 	struct Object
 	{
 		double radius;
-		Coord cur, dst;
+		vec2d cur, dst;
 	};
 	std::vector<Object> agents;
 	// @distance : precomputed distance between the centers
-	Coord getRepulsionVec(const Object& c1, const Object& c2, double distance);
+	vec2d getRepulsionVec(const Object& c1, const Object& c2, double distance);
 
 	bool drawRadius;
 	float maxRadius;
@@ -27,5 +30,5 @@ class NavigatorCamposPotenciais : public NavigatorInterface
 	void updateTimeStep(float timeStep) override;
 
 public:
-	NavigatorCamposPotenciais(sf::RenderWindow& window);
+	NavigatorCamposPotenciais(Simulator2D& simulator2D);
 };

@@ -19,7 +19,7 @@ template<class T, class...Rest>auto MakeUniquePtr(std::unique_ptr<T>& ptr, Rest&
 	ptr = std::make_unique<T>(rest...);
 }
 
-template<class T>auto square(T x)
+template<class T>constexpr auto square(T x)
 {
 	return x * x;
 }

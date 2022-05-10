@@ -1,16 +1,19 @@
 #pragma once
 #include "Goal.hpp"
 
-class Agent2D
+class Agent2D : public ElemSelected
 {
 	static const sf::Color DEFAULT_COLOR;
 
+	float getRadius() override;
+	vec2d& accessCoord() override;
+
 public:
-	Agent2D(const Coord& coord, double radius = DEFAULT_RADIUS, const sf::Color& color = DEFAULT_COLOR);
-	Coord coord;
-	Goal* goalPtr; // se nullptr, o agente está ocioso (não assigned a nenhum goal)
+	Agent2D(const vec2d& coord, double radius = DEFAULT_RADIUS, const sf::Color& color = DEFAULT_COLOR);
+	vec2d coord;
+	const Goal* goalPtr; // se nullptr, o agente está ocioso (não assigned a nenhum goal)
 	double radius;
 	sf::Color color;
-	void updateGoal(Goal& goal);
+	void updateGoal(const Goal& goal);
 	static constexpr auto DEFAULT_RADIUS = 30.f; // em metros
 };

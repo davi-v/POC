@@ -1,4 +1,5 @@
 #include "Pch.hpp"
+#include "Utilities.hpp"
 
 time_t GetCurTime()
 {
@@ -48,4 +49,16 @@ std::string GetUniqueNameWithCurrentTime(const std::string& prepend, const std::
 		extra = " (" + std::to_string(++cnt) + ')';
 
 	return beg + extra + ext;
+}
+
+bool TryUpdateClosestCircle(const vec2d& coordDouble, double& curMinD2, const vec2d& coord, double r)
+{
+	auto d2 = square(coord - coordDouble);
+	if (d2 <= square(r)) // mouse dentro do círculo
+		if (d2 < curMinD2) // círculo de raio mais próximo
+		{
+			curMinD2 = d2;
+			return true;
+		}
+	return false;
 }

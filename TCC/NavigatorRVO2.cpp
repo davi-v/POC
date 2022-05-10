@@ -4,8 +4,8 @@
 #include "Simulator2D.hpp"
 #include "DrawUtil.hpp"
 
-NavigatorRVO2::NavigatorRVO2(sf::RenderWindow& window) :
-	window(window)
+NavigatorRVO2::NavigatorRVO2(Simulator2D& simulator2D) :
+	simulator2D(simulator2D)
 {
 	sim.setTimeStep(DEFAULT_TIME_STEP);
 }
@@ -36,7 +36,7 @@ void NavigatorRVO2::tick()
 		RVO::Vector2 goalVec;
 		if (const auto& goalPtr = goals[i])
 		{
-			goalVec = static_cast<RVO::Vector2>(*goalPtr) - sim.getAgentPosition(i);
+			goalVec = static_cast<RVO::Vector2>(goalPtr->coord) - sim.getAgentPosition(i);
 			if (goalVec != RVO::Vector2(0, 0))
 				goalVec = RVO::normalize(goalVec) * DEFAULT_AGENT_MAX_VELOCITY;
 		}
@@ -49,7 +49,8 @@ void NavigatorRVO2::tick()
 
 void NavigatorRVO2::draw()
 {
-	sf::CircleShape circle;
+	auto& circle = simulator2D.circle;
+	auto& window = simulator2D.window;
 	circle.setFillColor(sf::Color::Green);
 	PrepareCircleRadius(circle, DEFAULT_GOAL_RADIUS);
 
@@ -61,7 +62,7 @@ void NavigatorRVO2::draw()
 		if (goalPtr)
 		{
 			const auto& goal = *goalPtr;
-			circle.setPosition(goal);
+			circle.setPosition(goal.coord);
 			window.draw(circle);
 		}
 	}
@@ -86,7 +87,7 @@ void NavigatorRVO2::draw()
 				sf::Vertex vertices[2]
 				{
 					sf::Vertex{ ToSFML(sim.getAgentPosition(i)), sf::Color::Magenta},
-					sf::Vertex{ goal, sf::Color::Magenta },
+					sf::Vertex{ goal.coord, sf::Color::Magenta },
 				};
 				window.draw(vertices, 2, sf::Lines);
 			}

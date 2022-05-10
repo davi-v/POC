@@ -1,5 +1,6 @@
 #pragma once
 #include "NavigatorInterface.hpp"
+#include "Simulator2D.hpp"
 
 class NavigatorRVO2 : public NavigatorInterface
 {
@@ -10,8 +11,8 @@ class NavigatorRVO2 : public NavigatorInterface
 	static constexpr float DEFAULT_TIME_HORIZON_OBST = DEFAULT_TIME_HORIZON;
 
 	RVO::RVOSimulator sim;
-	std::vector<Goal*> goals;
-	sf::RenderWindow& window;
+	std::vector<const Goal*> goals;
+	Simulator2D& simulator2D;
 
 	void addAgent(const Agent2D& agent) override;
 	void tick() override;
@@ -19,5 +20,5 @@ class NavigatorRVO2 : public NavigatorInterface
 	void updateTimeStep(float timeStep) override;
 
 public:
-	NavigatorRVO2(sf::RenderWindow& window);
+	NavigatorRVO2(Simulator2D& simulator2D);
 };

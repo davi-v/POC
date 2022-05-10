@@ -122,6 +122,7 @@
       <PrecompiledHeaderFile>Pch.hpp</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <DebugInformationFormat>None</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -165,6 +166,7 @@
       <PrecompiledHeaderFile>Pch.hpp</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <DebugInformationFormat>None</DebugInformationFormat>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -192,13 +194,16 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Random.cpp" />
+    <ClCompile Include="SelectableEdge.cpp" />
     <ClCompile Include="Simulator2D.cpp" />
     <ClCompile Include="tinyfiledialogs.cpp" />
     <ClCompile Include="Utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Agent.hpp" />
+    <ClInclude Include="ElemSelected.hpp" />
     <ClInclude Include="NavigatorCamposPotenciais.hpp" />
+    <ClInclude Include="SelectableEdge.hpp" />
     <ClInclude Include="vec2.hpp" />
     <ClInclude Include="DefineUtils.hpp" />
     <ClInclude Include="DrawUtil.hpp" />

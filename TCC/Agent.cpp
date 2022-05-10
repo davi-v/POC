@@ -3,7 +3,7 @@
 
 const sf::Color Agent2D::DEFAULT_COLOR = sf::Color::Red;
 
-void Agent2D::updateGoal(Goal& goal)
+void Agent2D::updateGoal(const Goal& goal)
 {
 	goalPtr = &goal;
 }

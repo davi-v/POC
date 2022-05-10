@@ -38,6 +38,9 @@
     <ClCompile Include="NavigatorInterface.cpp">
       <Filter>Simulator2D\Navigators</Filter>
     </ClCompile>
+    <ClCompile Include="SelectableEdge.cpp">
+      <Filter>Simulator2D\SelectableEdge</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Simulator3D">
@@ -45,9 +48,6 @@
     </Filter>
     <Filter Include="Simulator2D">
       <UniqueIdentifier>{78982bce-627e-4218-b57d-d80c806badb1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Random">
-      <UniqueIdentifier>{f64968b6-e830-4712-88fc-d2e0af0049d1}</UniqueIdentifier>
     </Filter>
     <Filter Include="Hopcroft">
       <UniqueIdentifier>{42d3a841-9fe6-413e-ac3d-c6a679225a59}</UniqueIdentifier>
@@ -84,6 +84,15 @@
     </Filter>
     <Filter Include="Simulator2D\Navigators\rvo2">
       <UniqueIdentifier>{835b72e5-305f-4f38-aae4-bf10e46cb886}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\SelectableEdge">
+      <UniqueIdentifier>{7bd90430-b943-49f9-a064-ea787fc2eb24}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ElemSelected">
+      <UniqueIdentifier>{bd6f6231-09a6-4167-991f-7fcc2e64150a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Random">
+      <UniqueIdentifier>{f64968b6-e830-4712-88fc-d2e0af0049d1}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -130,6 +139,12 @@
     </ClInclude>
     <ClInclude Include="NavigatorInterface.hpp">
       <Filter>Simulator2D\Navigators</Filter>
+    </ClInclude>
+    <ClInclude Include="SelectableEdge.hpp">
+      <Filter>Simulator2D\SelectableEdge</Filter>
+    </ClInclude>
+    <ClInclude Include="ElemSelected.hpp">
+      <Filter>ElemSelected</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
