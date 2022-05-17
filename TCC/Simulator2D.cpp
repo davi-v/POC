@@ -314,15 +314,13 @@ void Simulator2D::draw()
 
 		if (navigator->running)
 		{
-			float timestemp;
-			auto updateTimeStemp = [&]() -> float&
-			{
-				return timestemp = globalClock.getElapsedTime().asSeconds();
-			};
-			while (updateTimeStemp() - navigatorLastTick >= curTimeStep)
+			auto now = globalClock.getElapsedTime().asSeconds();
+			navigatorAccTs += now - navigatorLastTickTimestamp;
+			navigatorLastTickTimestamp = now;
+			while (navigatorAccTs >= curTimeStep)
 			{
 				navigator->tick();
-				navigatorLastTick = timestemp;
+				navigatorAccTs -= curTimeStep;
 			}
 
 			if (ImGui::Button("Pause"))
@@ -333,7 +331,8 @@ void Simulator2D::draw()
 			if (ImGui::Button("Play"))
 			{
 				navigator->running = true;
-				navigatorLastTick = globalClock.getElapsedTime().asSeconds();
+				navigatorAccTs = 0;
+				navigatorLastTickTimestamp = globalClock.getElapsedTime().asSeconds();
 			}
 		}
 		ImGui::Checkbox("Draw Destination Lines", &navigator->drawDestinationLines);

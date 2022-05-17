@@ -65,7 +65,8 @@ class Simulator2D
 	} curNavigator;
 
 	std::unique_ptr<NavigatorInterface> navigator;
-	float navigatorLastTick;
+	float navigatorLastTickTimestamp;
+	float navigatorAccTs;
 
 	typedef int DistanceFunctionsUnderlyingType;
 	enum class DistanceFunctionsEnum : DistanceFunctionsUnderlyingType
