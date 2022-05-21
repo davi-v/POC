@@ -3,8 +3,8 @@
 template<class T>
 struct vec2_t
 {
-	vec2_t();
-	vec2_t(T x, T y);
+	constexpr vec2_t();
+	constexpr vec2_t(T x, T y);
 	T x, y;
 	operator sf::Vector2f() const;
 	operator RVO::Vector2() const;
@@ -18,6 +18,7 @@ struct vec2_t
 	bool tryNormalize();
 };
 
+typedef vec2_t<float> vec2f;
 typedef vec2_t<double> vec2d;
 
 template<class T>
@@ -47,14 +48,14 @@ template<class T>
 vec2_t<T> operator*(T s, const vec2_t<T>& v);
 
 template<class T>
-inline vec2_t<T>::vec2_t(T x, T y) :
+inline constexpr vec2_t<T>::vec2_t(T x, T y) :
 	x(x),
 	y(y)
 {
 }
 
 template<class T>
-inline vec2_t<T>::vec2_t() :
+inline constexpr vec2_t<T>::vec2_t() :
 	x(0),
 	y(0)
 {
@@ -139,4 +140,10 @@ template<class T>
 inline vec2_t<T> operator*(T s, const vec2_t<T>& v)
 {
 	return v * s;
+}
+
+template<class T>
+vec2_t<T> projPointUAxis(const vec2_t<T>& p, const vec2_t<T>& uAxis)
+{
+	return uAxis * dot(p, uAxis);
 }

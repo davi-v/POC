@@ -21,7 +21,6 @@ typedef std::vector<std::pair<size_t, size_t>> Edges;
 class Simulator2D
 {
 	static constexpr auto WARNING_DURATION = 3.f;
-	static constexpr float DEFAULT_ZOOM_LEVEL = 0;
 	static const sf::Color DEFAULT_GOAL_COLOR;
 
 	bool canSaveFile();
@@ -119,7 +118,6 @@ class Simulator2D
 	std::vector<std::unique_ptr<Agent2D>> agents; // usamos ponteiros para não mudar o endereço do objeto apontado quando o vetor é resized
 	std::vector<std::unique_ptr<Goal>> goals;
 	bool usingOutline;
-	float zoomLevel;
 
 	vec2d getCoordDouble(int x, int y);
 	void addEdge(Agent2D& agent, const Goal& goal);
@@ -208,4 +206,7 @@ public:
 
 	sf::RenderWindow& window;
 	sf::CircleShape circle;
+	float zoomLevel;
+
+	static constexpr float DEFAULT_ZOOM_LEVEL = 0;
 };

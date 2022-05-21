@@ -3,7 +3,7 @@
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="Pch.cpp">
-      <Filter>DrawUtil\Pch</Filter>
+      <Filter>Pch</Filter>
     </ClCompile>
     <ClCompile Include="Simulator2D.cpp">
       <Filter>Simulator2D</Filter>
@@ -41,6 +41,12 @@
     <ClCompile Include="SelectableEdge.cpp">
       <Filter>Simulator2D\SelectableEdge</Filter>
     </ClCompile>
+    <ClCompile Include="OpenCVSFML.cpp">
+      <Filter>OpenCVSFML</Filter>
+    </ClCompile>
+    <ClCompile Include="FileExplorer.cpp">
+      <Filter>FileExplorer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Simulator3D">
@@ -70,9 +76,6 @@
     <Filter Include="DrawUtil">
       <UniqueIdentifier>{e9853e7a-27e8-4f1d-8759-06c03dae2d67}</UniqueIdentifier>
     </Filter>
-    <Filter Include="DrawUtil\Pch">
-      <UniqueIdentifier>{6ec6d48e-35a4-4953-8f6b-b285ed91d1c7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Simulator2D\vec2">
       <UniqueIdentifier>{f9be909d-ae22-4f69-b89e-0cf25fbe49d4}</UniqueIdentifier>
     </Filter>
@@ -94,10 +97,19 @@
     <Filter Include="Random">
       <UniqueIdentifier>{f64968b6-e830-4712-88fc-d2e0af0049d1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Pch">
+      <UniqueIdentifier>{6ec6d48e-35a4-4953-8f6b-b285ed91d1c7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="OpenCVSFML">
+      <UniqueIdentifier>{7675fd6e-725d-4a55-94d1-57eec9db385f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="FileExplorer">
+      <UniqueIdentifier>{73d2b633-05ed-4782-9b46-cc062653d21a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.hpp">
-      <Filter>DrawUtil\Pch</Filter>
+      <Filter>Pch</Filter>
     </ClInclude>
     <ClInclude Include="Simulator2D.hpp">
       <Filter>Simulator2D</Filter>
@@ -145,6 +157,12 @@
     </ClInclude>
     <ClInclude Include="ElemSelected.hpp">
       <Filter>ElemSelected</Filter>
+    </ClInclude>
+    <ClInclude Include="OpenCVSFML.hpp">
+      <Filter>OpenCVSFML</Filter>
+    </ClInclude>
+    <ClInclude Include="FileExplorer.hpp">
+      <Filter>FileExplorer</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

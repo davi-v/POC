@@ -5,6 +5,8 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <numeric>
+#include <numbers>
 #include <set>
 #include <random>
 #include <filesystem>
@@ -39,3 +41,11 @@
 
 #include "TemplateUtils.hpp"
 #include "DefineUtils.hpp"
+
+#include <opencv2/opencv.hpp>
+#ifdef _DEBUG
+#define OPENCV_DEBUG_EXT "d"
+#else
+#define OPENCV_DEBUG_EXT
+#endif
+#pragma comment(lib, "opencv_world455" OPENCV_DEBUG_EXT)

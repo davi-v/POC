@@ -6,6 +6,10 @@ void LOG_ELEM(T&& elem)
 {
 	std::cout << elem;
 }
+inline void LOG_ELEM(wchar_t* s)
+{
+	std::wcout << s;
+}
 inline void LOG_ELEM(const std::wstring& s)
 {
 	std::wcout << s;

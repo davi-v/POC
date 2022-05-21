@@ -181,12 +181,14 @@
   <ItemGroup>
     <ClCompile Include="Agent.cpp" />
     <ClCompile Include="DrawUtil.cpp" />
+    <ClCompile Include="FileExplorer.cpp" />
     <ClCompile Include="Goal.cpp" />
     <ClCompile Include="Hopcroft.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="NavigatorCamposPotenciais.cpp" />
     <ClCompile Include="NavigatorInterface.cpp" />
     <ClCompile Include="NavigatorRVO2.cpp" />
+    <ClCompile Include="OpenCVSFML.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -202,7 +204,9 @@
   <ItemGroup>
     <ClInclude Include="Agent.hpp" />
     <ClInclude Include="ElemSelected.hpp" />
+    <ClInclude Include="FileExplorer.hpp" />
     <ClInclude Include="NavigatorCamposPotenciais.hpp" />
+    <ClInclude Include="OpenCVSFML.hpp" />
     <ClInclude Include="SelectableEdge.hpp" />
     <ClInclude Include="vec2.hpp" />
     <ClInclude Include="DefineUtils.hpp" />

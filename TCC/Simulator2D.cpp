@@ -6,6 +6,7 @@
 #include "NavigatorCamposPotenciais.hpp"
 #include "Hopcroft.hpp"
 #include "Utilities.hpp"
+#include "FileExplorer.hpp"
 
 const sf::Color Simulator2D::DEFAULT_GOAL_COLOR = sf::Color::Green;
 
@@ -461,26 +462,13 @@ bool Simulator2D::canSaveFile()
 
 void Simulator2D::saveFile()
 {
-	if (auto selection = tinyfd_saveFileDialogW( // there is also a wchar_t version
-		L"Select where to save the current agents and goals", // title
-		nullptr, // optional initial directory
-		1, // number of filter patterns
-		lFilterPatterns, // char const * lFilterPatterns[2] = { "*.txt", "*.jpg" };
-		nullptr
-	))
+	if (auto selection = TryWriteFile(L"Select where to save the current agents and goals", 1, lFilterPatterns))
 		saveAgentsAndGoals(selection);
 }
 
 void Simulator2D::tryOpenFile()
 {
-	if (auto selection = tinyfd_openFileDialogW( // there is also a wchar_t version
-		L"Select map to load", // title
-		nullptr, // optional initial directory
-		1, // number of filter patterns
-		lFilterPatterns, // char const * lFilterPatterns[2] = { "*.txt", "*.jpg" };
-		NULL, // optional filter description
-		0 // forbid multiple selections
-	))
+	if (auto selection = TryOpenFile(L"Select map to load", 1, lFilterPatterns))
 		if (loadAgentsAndGoals(selection))
 		{
 			updateGraphEdges();
