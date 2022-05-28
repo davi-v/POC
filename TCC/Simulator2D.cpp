@@ -142,19 +142,6 @@ void Simulator2D::addGoal(const Goal& goal)
 	goals.emplace_back(std::make_unique<Goal>(goal));
 }
 
-static void HelpMarker(const char* desc)
-{
-	ImGui::TextDisabled("(?)");
-	if (ImGui::IsItemHovered())
-	{
-		ImGui::BeginTooltip();
-		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-		ImGui::TextUnformatted(desc);
-		ImGui::PopTextWrapPos();
-		ImGui::EndTooltip();
-	}
-}
-
 void Simulator2D::draw()
 {
 	ImGui::Begin("Settings");

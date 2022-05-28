@@ -5,6 +5,8 @@ struct vec2_t
 {
 	constexpr vec2_t();
 	constexpr vec2_t(T x, T y);
+	constexpr vec2_t(T val);
+	constexpr vec2_t(const sf::Vector2<T>& v);
 	T x, y;
 	operator sf::Vector2f() const;
 	operator RVO::Vector2() const;
@@ -42,6 +44,12 @@ auto square(const vec2_t<T>& v)
 }
 
 template<class T>
+auto length(const vec2_t<T>& v)
+{
+	return sqrt(dot(v, v));
+}
+
+template<class T>
 vec2_t<T> normalize(const vec2_t<T>& v);
 
 template<class T>
@@ -51,6 +59,20 @@ template<class T>
 inline constexpr vec2_t<T>::vec2_t(T x, T y) :
 	x(x),
 	y(y)
+{
+}
+
+template<class T>
+inline constexpr vec2_t<T>::vec2_t(T val) :
+	x(val),
+	y(val)
+{
+}
+
+template<class T>
+inline constexpr vec2_t<T>::vec2_t(const sf::Vector2<T>& v) :
+	x(v.x),
+	y(v.y)
 {
 }
 
@@ -131,9 +153,7 @@ inline bool vec2_t<T>::tryNormalize()
 template<class T>
 inline vec2_t<T> normalize(const vec2_t<T>& v)
 {
-	auto d2 = dot(v, v);
-	auto len = sqrt(d2);
-	return v / len;
+	return v / length(v);
 }
 
 template<class T>

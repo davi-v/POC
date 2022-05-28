@@ -16,5 +16,6 @@
     <ClCompile Include="imgui_tables.cpp" />
     <ClCompile Include="imgui_widgets.cpp" />
     <ClCompile Include="imgui-SFML.cpp" />
+    <ClCompile Include="imgui_demo.cpp" />
   </ItemGroup>
 </Project>

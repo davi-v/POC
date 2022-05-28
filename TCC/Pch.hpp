@@ -39,6 +39,9 @@
 #pragma comment(lib, "imgui")
 #pragma comment(lib, "opengl32")
 
+#include <implot.h>
+#pragma comment(lib, "implot")
+
 #include "TemplateUtils.hpp"
 #include "DefineUtils.hpp"
 

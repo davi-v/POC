@@ -47,6 +47,9 @@
     <ClCompile Include="FileExplorer.cpp">
       <Filter>FileExplorer</Filter>
     </ClCompile>
+    <ClCompile Include="Application.cpp">
+      <Filter>Application</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Simulator3D">
@@ -106,6 +109,9 @@
     <Filter Include="FileExplorer">
       <UniqueIdentifier>{73d2b633-05ed-4782-9b46-cc062653d21a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Application">
+      <UniqueIdentifier>{ce39d046-129c-4e09-bd4f-ca945509d976}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.hpp">
@@ -163,6 +169,9 @@
     </ClInclude>
     <ClInclude Include="FileExplorer.hpp">
       <Filter>FileExplorer</Filter>
+    </ClInclude>
+    <ClInclude Include="Application.hpp">
+      <Filter>Application</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
