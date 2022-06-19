@@ -15,7 +15,8 @@ int main()
 {
 	sf::RenderWindow window{
 #ifdef _DEBUG
-		sf::VideoMode{ 1280, 720 }
+		sf::VideoMode{ 1600, 900 }
+		//sf::VideoMode{ 1280, 720 }
 #else
 		sf::VideoMode::getDesktopMode()
 #endif

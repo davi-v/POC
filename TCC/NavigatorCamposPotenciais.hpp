@@ -4,6 +4,8 @@
 
 class NavigatorCamposPotenciais : public NavigatorInterface
 {
+	std::vector<vec2d> getAgentPositions() override;
+
 	float timeStep;
 	Simulator2D& simulator2D;
 
@@ -22,7 +24,6 @@ class NavigatorCamposPotenciais : public NavigatorInterface
 
 	bool drawRadius;
 	float maxRadius;
-	static constexpr float DEFAULT_CAMPOS_POTENCIAIS_RADIUS = Agent2D::DEFAULT_RADIUS * 6;
 
 	void addAgent(const Agent2D& agent) override;
 	void tick() override;
@@ -30,5 +31,5 @@ class NavigatorCamposPotenciais : public NavigatorInterface
 	void updateTimeStep(float timeStep) override;
 
 public:
-	NavigatorCamposPotenciais(Simulator2D& simulator2D);
+	NavigatorCamposPotenciais(Simulator2D& simulator2D, float r);
 };

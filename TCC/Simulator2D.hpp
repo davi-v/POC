@@ -4,6 +4,8 @@
 #include "NavigatorInterface.hpp"
 #include "SelectableEdge.hpp"
 
+static constexpr float DEFAULT_RADIUS = 15.f;
+
 #define SIMULATOR_EXT "tcc"
 
 static constexpr wchar_t const* lFilterPatterns[] = { L"*." SIMULATOR_EXT};
@@ -12,14 +14,18 @@ double distanceAgent(const Agent2D& agent, const Goal& goal);
 double distanceSquaredAgent(const Agent2D& agent, const Goal& goal);
 typedef double(*DistanceFunc)(const Agent2D& agent, const Goal& goal);
 
-static constexpr auto DEFAULT_AGENT_MAX_VELOCITY = 20.f; // em metros/s
+static constexpr auto DEFAULT_AGENT_MAX_VELOCITY = 20.f; // em px/s
 static constexpr auto DEFAULT_TICKS_PER_SECOND = 144; // >= 1
 static constexpr float DEFAULT_TIME_STEP = 1.f / DEFAULT_TICKS_PER_SECOND;
 
 typedef std::vector<std::vector<double>> CostMatrix;
 typedef std::vector<std::pair<size_t, size_t>> Edges;
+class Application;
 class Simulator2D
 {
+	void updateOutlineColor();
+	void updateOutlineThickness();
+
 	static constexpr auto WARNING_DURATION = 3.f;
 	static const sf::Color DEFAULT_GOAL_COLOR;
 
@@ -27,11 +33,9 @@ class Simulator2D
 	void saveFile();
 	void tryOpenFile();
 
-	bool notHoveringUI();
-
 	void defaultDraw();
 
-	bool usingDistancesSquared;
+	bool usingDistancesSquared = false;
 	void updateDistanceSquaredVars();
 	bool hasAtLeast1Edge();
 
@@ -42,12 +46,6 @@ class Simulator2D
 
 	sf::Font font;
 
-	enum class EditModeType
-	{
-		Free,
-		Metric,
-		Navigation
-	} editModeType;
 
 	enum class LeftClickAction
 	{
@@ -81,9 +79,6 @@ class Simulator2D
 	};
 	DistanceFunc distanceFuncUsingCallback;
 
-	// doesn't handle graph with no edges
-	void updateGraphEdges();
-
 	double currentMaxEdge, currentMaxEdgeSquared;
 	double currentTotalSumOfEachEdgeDistance, currentTotalSumOfEachEdgeDistanceSquared;
 
@@ -109,20 +104,21 @@ class Simulator2D
 	std::deque<std::pair<const char*, sf::Time>> warnings;
 	void addMessage(const char* msg);
 
+	float outlineColor[3]{1, 1, 1};
+
 	bool loadAgentsAndGoals(const std::wstring& path);
 	void saveAgentsAndGoals(const std::wstring& path);
 
 	double getDistanceSquaredToEdge(const SelectableEdge& e, const vec2d& c);
 
 	sf::Text textPopUpMessages;
-	std::vector<std::unique_ptr<Agent2D>> agents; // usamos ponteiros para não mudar o endereço do objeto apontado quando o vetor é resized
+	
 	std::vector<std::unique_ptr<Goal>> goals;
 	bool usingOutline;
 
 	vec2d getCoordDouble(int x, int y);
 	void addEdge(Agent2D& agent, const Goal& goal);
 
-	int lastPxClickedX, lastPxClickedY; // for moving the view
 
 	struct LeftClickInterface
 	{
@@ -132,7 +128,7 @@ class Simulator2D
 		virtual void draw();
 		virtual bool canMoveView();
 
-		virtual void pollEvent(const sf::Event& event) = 0;
+		virtual bool pollEvent(const sf::Event& event) = 0;
 	};
 
 	class AddEdgeAction : public LeftClickInterface
@@ -150,7 +146,7 @@ class Simulator2D
 
 		bool goalSelected;
 
-		void pollEvent(const sf::Event& event) override;
+		bool pollEvent(const sf::Event& event) override;
 		void draw() override;
 
 	public:
@@ -159,7 +155,7 @@ class Simulator2D
 
 	struct SelectAction : LeftClickInterface
 	{
-		void pollEvent(const sf::Event& event) override;
+		bool pollEvent(const sf::Event& event) override;
 		void draw() override;
 		bool canMoveView() override;
 		SelectAction(Simulator2D& sim);
@@ -172,7 +168,7 @@ class Simulator2D
 
 	struct AddItemAction : LeftClickInterface
 	{
-		void pollEvent(const sf::Event& event) override;
+		bool pollEvent(const sf::Event& event) override;
 		AddItemAction(Simulator2D& sim);
 		bool didNotMoveSinceLastPress;
 
@@ -192,21 +188,36 @@ class Simulator2D
 
 	std::unique_ptr<LeftClickInterface> leftClickInterface;
 
-	float zoomFac;
-	void updateZoomFacAndViewSizeFromZoomLevel(sf::View& view);
 
-	static constexpr auto N_SCROLS_TO_DOUBLE = 4;
+
+	static constexpr float N_DIAMETERS_SAFER = 3;
 
 public:
-	Simulator2D(sf::RenderWindow& window);
-	void addAgent(const Agent2D& agent);
-	void addGoal(const Goal& coord);
+	std::vector<std::unique_ptr<Agent2D>> agents; // usamos ponteiros para não mudar o endereço do objeto apontado quando o vetor é resized
+	Application* app;
+	Simulator2D(Application* app, float r);
+	void addAgent(const vec2d& c);
+	void addAgent(float x, float y);
+	void addGoal(const vec2d& coord);
 	void draw();
-	void pollEvent(const sf::Event& event);
+	bool pollEvent(const sf::Event& event);
+	void clear();
+	void updateGraphEdges();
 
-	sf::RenderWindow& window;
+	sf::Color getColor(float x, float y);
+
+	enum class EditModeType
+	{
+		Free,
+		Metric,
+		Navigation
+	} editModeType;
+
+	float percentageOutline = .1f;
+
+	float r;
+
 	sf::CircleShape circle;
-	float zoomLevel;
 
-	static constexpr float DEFAULT_ZOOM_LEVEL = 0;
+	void leaveNavigatorUpdatingAgentsCoordinates();
 };

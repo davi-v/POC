@@ -75,3 +75,22 @@ void HelpMarker(const char* desc)
 		ImGui::EndTooltip();
 	}
 }
+
+bool NotHoveringIMGui()
+{
+	return !ImGui::IsWindowHovered(
+		ImGuiHoveredFlags_AnyWindow |
+		//ImGuiHoveredFlags_DockHierarchy |
+		ImGuiHoveredFlags_AllowWhenBlockedByPopup |
+		ImGuiHoveredFlags_AllowWhenBlockedByActiveItem
+	);
+}
+
+sf::Color ToSFMLColor(float backgroundColor[3])
+{
+	return {
+		static_cast<sf::Uint8>(backgroundColor[0] * 255),
+		static_cast<sf::Uint8>(backgroundColor[1] * 255),
+		static_cast<sf::Uint8>(backgroundColor[2] * 255),
+	};
+}

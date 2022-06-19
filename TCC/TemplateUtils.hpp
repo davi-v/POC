@@ -16,7 +16,7 @@ template<class...Rest>auto Clear(Rest&&... rest)
 
 template<class T, class...Rest>auto MakeUniquePtr(std::unique_ptr<T>& ptr, Rest&&... rest)
 {
-	ptr = std::make_unique<T>(rest...);
+	ptr = std::make_unique<T>(std::forward<Rest>(rest)...);
 }
 
 template<class T>constexpr auto square(T x)

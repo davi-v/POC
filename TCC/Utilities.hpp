@@ -16,3 +16,7 @@ std::string GetUniqueNameWithCurrentTime(const std::string& prepend, const std::
 bool TryUpdateClosestCircle(const vec2d& coordDouble, double& curMinD2, const vec2d& coord, double r);
 
 void HelpMarker(const char* desc);
+
+bool NotHoveringIMGui();
+
+sf::Color ToSFMLColor(float colors[3]);

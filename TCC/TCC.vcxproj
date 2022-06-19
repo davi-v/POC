@@ -185,6 +185,7 @@
     <ClCompile Include="FileExplorer.cpp" />
     <ClCompile Include="Goal.cpp" />
     <ClCompile Include="Hopcroft.cpp" />
+    <ClCompile Include="Hungarian.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="NavigatorCamposPotenciais.cpp" />
     <ClCompile Include="NavigatorInterface.cpp" />
@@ -207,6 +208,7 @@
     <ClInclude Include="Application.hpp" />
     <ClInclude Include="ElemSelected.hpp" />
     <ClInclude Include="FileExplorer.hpp" />
+    <ClInclude Include="Hungarian.hpp" />
     <ClInclude Include="NavigatorCamposPotenciais.hpp" />
     <ClInclude Include="OpenCVSFML.hpp" />
     <ClInclude Include="SelectableEdge.hpp" />

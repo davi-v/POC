@@ -7,6 +7,8 @@
 #include "Hopcroft.hpp"
 #include "Utilities.hpp"
 #include "FileExplorer.hpp"
+#include "Hungarian.hpp"
+#include "Application.hpp"
 
 const sf::Color Simulator2D::DEFAULT_GOAL_COLOR = sf::Color::Green;
 
@@ -45,7 +47,7 @@ bool Simulator2D::loadAgentsAndGoals(const std::wstring& path)
 			vec2d coord;
 			FileRead(f, coord);
 			auto& agent = agents[i];
-			agent = std::make_unique<Agent2D>(coord);
+			agent = std::make_unique<Agent2D>(coord, r);
 		}
 		bytesLeft -= nextSize;
 
@@ -61,7 +63,7 @@ bool Simulator2D::loadAgentsAndGoals(const std::wstring& path)
 			vec2d coord;
 			FileRead(f, coord);
 			auto& goal = goals[i];
-			goal = std::make_unique<Goal>(coord);
+			goal = std::make_unique<Goal>(coord, r);
 		}
 
 		return true;
@@ -88,7 +90,7 @@ double Simulator2D::getDistanceSquaredToEdge(const SelectableEdge& e, const vec2
 
 vec2d Simulator2D::getCoordDouble(int x, int y)
 {
-	auto coordFloat = window.mapPixelToCoords({ x, y });
+	auto coordFloat = app->window.mapPixelToCoords({ x, y });
 	vec2d coordDouble(static_cast<double>(coordFloat.x), static_cast<double>(coordFloat.y));
 	return coordDouble;
 }
@@ -98,14 +100,11 @@ void Simulator2D::addEdge(Agent2D& agent, const Goal& goal)
 	agent.updateGoal(goal);
 }
 
-void Simulator2D::updateZoomFacAndViewSizeFromZoomLevel(sf::View& view)
-{
-	zoomFac = powf(2, static_cast<float>(zoomLevel) / N_SCROLS_TO_DOUBLE);
-	view.setSize(sf::Vector2f{ window.getSize() } * zoomFac);
-}
 
-Simulator2D::Simulator2D(sf::RenderWindow& window) :
+Simulator2D::Simulator2D(Application* app, float r) :
+	app(app),
 	editModeType(EditModeType::Free),
+	r(r),
 	usingOutline(false),
 	curNavigator(NavigatorCheckbox::rvo2),
 	leftClickAction(LeftClickAction::Select),
@@ -113,11 +112,7 @@ Simulator2D::Simulator2D(sf::RenderWindow& window) :
 	curTimeStep(DEFAULT_TIME_STEP),
 	distanceFunctionUsingType(DistanceFunctionsEnum::SumOfEachEdgeDistance),
 	distanceFuncUsingCallback(DISTANCE_FUNCTIONS[static_cast<DistanceFunctionsUnderlyingType>(distanceFunctionUsingType)]),
-	window(window),
 	metric(Metric::MinimizeTotalSumOfEdges),
-	zoomLevel(DEFAULT_ZOOM_LEVEL),
-	lastPxClickedX(-1),
-	zoomFac(1),
 	currentMaxEdge(0),
 	currentTotalSumOfEachEdgeDistance(0),
 	currentTotalSumOfEachEdgeDistanceSquared(0)
@@ -132,14 +127,19 @@ Simulator2D::Simulator2D(sf::RenderWindow& window) :
 	leftClickInterface = std::make_unique<SelectAction>(*this);
 }
 
-void Simulator2D::addAgent(const Agent2D& agent)
+void Simulator2D::addAgent(const vec2d& c)
 {
-	agents.emplace_back(std::make_unique<Agent2D>(agent));
+	agents.emplace_back(std::make_unique<Agent2D>(c, r));
 }
 
-void Simulator2D::addGoal(const Goal& goal)
+void Simulator2D::addAgent(float x, float y)
 {
-	goals.emplace_back(std::make_unique<Goal>(goal));
+	addAgent({ static_cast<double>(x), static_cast<double>(y) });
+}
+
+void Simulator2D::addGoal(const vec2d& c)
+{
+	goals.emplace_back(std::make_unique<Goal>(c, r));
 }
 
 void Simulator2D::draw()
@@ -157,9 +157,20 @@ void Simulator2D::draw()
 	if (ImGui::Checkbox("Outline Borders", &usingOutline))
 	{
 		if (usingOutline)
-			circle.setOutlineThickness(-1);
+		{
+			updateOutlineThickness();
+			updateOutlineColor();
+		}
 		else
 			circle.setOutlineThickness(0);
+	}
+
+	if (usingOutline)
+	{
+		if (ImGui::ColorPicker3("Outline Color", outlineColor, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha))
+			updateOutlineColor();
+		if (ImGui::SliderFloat("Outline Thickness Ratio", &percentageOutline, 0.f, 1.f))
+			updateOutlineThickness();
 	}
 
 	static constexpr const char* MODE_LABELS[] = {
@@ -193,7 +204,7 @@ void Simulator2D::draw()
 	auto drawEditMenu = [&](int nTypes)
 	{
 		static constexpr const char* LEFT_CLICK_ACTION[] = {
-		"Select",
+		"Drag / Delete",
 		"Place Agent",
 		"Place Goal",
 		"Add Edge"
@@ -225,10 +236,9 @@ void Simulator2D::draw()
 			}
 		}
 
-		if (ImGui::Button("Clear"))
-			Clear(agents, goals);
-
-		leftClickInterface->draw();
+		if (!agents.empty() || !goals.empty())
+			if (ImGui::Button("Clear"))
+				clear();
 	};
 
 	auto showFileActions = [&]
@@ -245,17 +255,20 @@ void Simulator2D::draw()
 	{
 		int amount;
 		if (hasAtLeast1Edge())
-			amount = 4;
+			amount = 4; // also give option to add edge
 		else
 			amount = 3;
 		drawEditMenu(amount);
+
+		leftClickInterface->draw();
 
 		showFileActions();
 	}
 	break;
 	case EditModeType::Metric:
 	{
-		drawEditMenu(3);
+		leftClickInterface->draw();
+
 		if (hasAtLeast1Edge() && ImGui::CollapsingHeader("Metrics"))
 		{
 			static constexpr const char* METRIC_MESSAGES[] = {
@@ -332,9 +345,9 @@ void Simulator2D::draw()
 	ImGui::End(); // Settings
 
 	// draw UI in screen space
-	sf::View curView = window.getView(); // to restore later
-	sf::View orgView = window.getDefaultView();
-	window.setView(orgView);
+	sf::View curView = app->window.getView(); // to restore later
+	sf::View orgView = app->window.getDefaultView();
+	app->window.setView(orgView);
 
 	// pop-up messages
 	std::string str;
@@ -355,91 +368,36 @@ void Simulator2D::draw()
 	textPopUpMessages.setString(str);
 	auto bounds = textPopUpMessages.getLocalBounds();
 	textPopUpMessages.setOrigin(bounds.width * 0.5f, 0);
-	auto [w, h] = window.getSize();
+	auto [w, h] = app->window.getSize();
 	textPopUpMessages.setPosition(w * 0.5f, 0);
-	window.draw(textPopUpMessages);
+	app->window.draw(textPopUpMessages);
 
-	window.setView(curView); // restore current view
+	app->window.setView(curView); // restore current view
 }
 
-void Simulator2D::pollEvent(const sf::Event& event)
+bool Simulator2D::pollEvent(const sf::Event& event)
 {
-	if (notHoveringUI())
-	{
-		if (editModeType != EditModeType::Navigation)
-			leftClickInterface->pollEvent(event);
+	if (NotHoveringIMGui())
+		if (editModeType == EditModeType::Free)
+			return leftClickInterface->pollEvent(event);
+	return false;
+}
 
-		switch (event.type)
-		{
-		case sf::Event::MouseButtonPressed:
-		{
-			auto& data = event.mouseButton;
-			switch (data.button)
-			{
-			case sf::Mouse::Left:
-			{
-				lastPxClickedX = data.x;
-				lastPxClickedY = data.y;
-			}
-			break;
-			}
-		}
-		break;
-		}
-	}
+void Simulator2D::clear()
+{
+	Clear(agents, goals);
+	navigator.reset();
+	editModeType = EditModeType::Metric;
+}
 
-	switch (event.type)
-	{
-	case sf::Event::MouseWheelScrolled:
-	{
-		auto& scrollData = event.mouseWheelScroll;
-		zoomLevel -= scrollData.delta;
+void Simulator2D::updateOutlineColor()
+{
+	circle.setOutlineColor(ToSFMLColor(outlineColor));
+}
 
-		auto& px = scrollData.x;
-		auto& py = scrollData.y;
-
-		auto pixelCoord = sf::Vector2i{ px, py };
-
-		sf::View view = window.getView();
-		auto prevCoord = window.mapPixelToCoords(pixelCoord, view);
-		updateZoomFacAndViewSizeFromZoomLevel(view);
-		auto newCoord = window.mapPixelToCoords(pixelCoord, view);
-		view.move(prevCoord - newCoord);
-
-		window.setView(view);
-	}
-	break;
-	case sf::Event::MouseMoved:
-	{
-		if (leftClickInterface->canMoveView())
-			if (lastPxClickedX != -1) // if we are holding left click, move view of the world
-			{
-				auto& data = event.mouseMove;
-				auto& newX = data.x;
-				auto& newY = data.y;
-
-				sf::View view = window.getView();
-				view.move((lastPxClickedX - newX) * zoomFac, (lastPxClickedY - newY) * zoomFac);
-				window.setView(view);
-
-				lastPxClickedX = newX;
-				lastPxClickedY = newY;
-			}
-	}
-	break;
-	case sf::Event::MouseButtonReleased:
-	{
-		switch (event.mouseButton.button)
-		{
-		case sf::Mouse::Left:
-		{
-			lastPxClickedX = -1; // no longer moving the scene
-		}
-		break;
-		}
-	}
-	break;
-	}
+void Simulator2D::updateOutlineThickness()
+{
+	circle.setOutlineThickness(-percentageOutline * r);
 }
 
 bool Simulator2D::canSaveFile()
@@ -475,24 +433,16 @@ void Simulator2D::tryOpenFile()
 			auto n = agents.size() + goals.size();
 			sX /= n; // se n é 0, loadAgentsAndGoals retornou false e não estaríamos aqui
 			sY /= n;
-			sf::View view = window.getView();
+			sf::View view = app->window.getView();
 			view.setCenter(static_cast<float>(sX), static_cast<float>(sY));
-			zoomLevel = 0;
-			updateZoomFacAndViewSizeFromZoomLevel(view);
-			window.setView(view);
+
+			app->zoomLevel = 0.f;
+			app->zoomFac = 1.f;
+			view.setSize(sf::Vector2f(app->window.getSize()) * app->zoomFac);
+			app->window.setView(view);
 		}
 		else
 			addMessage("Error reading file");
-}
-
-bool Simulator2D::notHoveringUI()
-{
-	return !ImGui::IsWindowHovered(
-		ImGuiHoveredFlags_AnyWindow |
-		//ImGuiHoveredFlags_DockHierarchy |
-		ImGuiHoveredFlags_AllowWhenBlockedByPopup |
-		ImGuiHoveredFlags_AllowWhenBlockedByActiveItem
-	);
 }
 
 void Simulator2D::defaultDraw()
@@ -504,7 +454,7 @@ void Simulator2D::defaultDraw()
 
 		const auto& coord = agent->coord;
 		circle.setPosition(coord);
-		window.draw(circle);
+		app->window.draw(circle);
 
 		if (agent->goalPtr)
 		{
@@ -520,16 +470,16 @@ void Simulator2D::defaultDraw()
 				sf::Vertex{ agent->coord, color },
 				sf::Vertex{ goal.coord, color },
 			};
-			window.draw(vertices, 2, sf::Lines);
+			app->window.draw(vertices, 2, sf::Lines);
 		}
 	}
 
 	circle.setFillColor(DEFAULT_GOAL_COLOR);
-	PrepareCircleRadius(circle, DEFAULT_GOAL_RADIUS);
+	PrepareCircleRadius(circle, r);
 	for (const auto& goal : goals)
 	{
 		circle.setPosition(goal->coord);
-		window.draw(circle);
+		app->window.draw(circle);
 	}
 }
 
@@ -551,27 +501,18 @@ void Simulator2D::createSelectedNavigator()
 	{
 	case NavigatorCheckbox::rvo2:
 	{
-		navigator = std::make_unique<NavigatorRVO2>(*this);
+		navigator = std::make_unique<NavigatorRVO2>(*this, r * 2 * N_DIAMETERS_SAFER);
 	}
 	break;
 	case NavigatorCheckbox::CamposPotenciais:
 	{
-		navigator = std::make_unique<NavigatorCamposPotenciais>(*this);
+		navigator = std::make_unique<NavigatorCamposPotenciais>(*this, r * 6);
 	}
 	break;
 	}
 	for (const auto& agent : agents)
 		navigator->addAgent(*agent);
 }
-
-//bool Simulator2D::reachedGoal()
-//{
-//	/* Check if all agents have reached their goals. */
-//	for (size_t i = 0, end = agents.size(); i != end; i++)
-//		if (RVO::absSq(sim.getAgentPosition(i) - goals[i]) > sim.getAgentRadius(i) * sim.getAgentRadius(i))
-//			return false;
-//	return true;
-//}
 
 void Simulator2D::updateGraphEdges()
 {
@@ -622,11 +563,43 @@ void Simulator2D::updateGraphEdges()
 	}
 }
 
+sf::Color Simulator2D::getColor(float x, float y)
+{
+	return app->getColor({ x, y });
+}
+
+void Simulator2D::leaveNavigatorUpdatingAgentsCoordinates()
+{
+	if (navigator)
+	{
+		auto allPositions = navigator->getAgentPositions();
+		auto n = agents.size();
+		for (size_t i = 0; i != n; i++)
+			agents[i]->coord = allPositions[i];
+	}
+	goals.clear();
+}
+
 void Simulator2D::updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(CostMatrix& costMatrix, bool needsToUpdateMaxEdge)
 {
-	HungarianAlgorithm HungAlgo;
 	std::vector<int> assignment;
-	auto cost = HungAlgo.Solve(costMatrix, assignment);
+	double cost;
+	//cost = HungarianAlgorithm{}.Solve(costMatrix, assignment);
+	{
+		auto n = static_cast<int>(costMatrix.size());
+		auto e = n * n;
+		std::vector<WeightedBipartiteEdge> edges(e);
+		size_t cnt = 0;
+		for (int i = 0; i != n; i++)
+			for (int j = 0; j != n; j++, cnt++)
+				edges[cnt] = { i, j, costMatrix[i][j] };
+		assignment = hungarianMinimumWeightPerfectMatching(n, edges);
+	
+		cost = 0;
+		for (size_t i = 0; i != n; i++)
+			cost += costMatrix[i][assignment[i]];
+	}
+
 	if (distanceFunctionUsingType == DistanceFunctionsEnum::SumOfEachEdgeDistance)
 	{
 		currentTotalSumOfEachEdgeDistance = cost;
@@ -640,7 +613,6 @@ void Simulator2D::updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(Co
 
 	if (needsToUpdateMaxEdge)
 		currentMaxEdge = 0;
-
 
 	auto
 		nAgents = agents.size(),
@@ -777,7 +749,7 @@ double distanceSquaredAgent(const Agent2D& agent, const Goal& goal)
 	return distanceSquared(agent.coord, goal.coord);
 }
 
-void Simulator2D::SelectAction::pollEvent(const sf::Event& event)
+bool Simulator2D::SelectAction::pollEvent(const sf::Event& event)
 {
 	switch (event.type)
 	{
@@ -826,6 +798,7 @@ void Simulator2D::SelectAction::pollEvent(const sf::Event& event)
 				}
 				elemSelected = nullptr;
 			}
+			
 		}
 		break;
 		}
@@ -844,6 +817,7 @@ void Simulator2D::SelectAction::pollEvent(const sf::Event& event)
 				auto coordDouble = sim.getCoordDouble(event.mouseButton.x, event.mouseButton.y);
 				curOff = coord - coordDouble;
 			}
+			
 		}
 		break;
 		}
@@ -856,6 +830,7 @@ void Simulator2D::SelectAction::pollEvent(const sf::Event& event)
 		case sf::Mouse::Left:
 		{
 			isHoldingLeftClick = false;
+			
 		}
 		break;
 		}
@@ -870,6 +845,7 @@ void Simulator2D::SelectAction::pollEvent(const sf::Event& event)
 			coord = coordDouble + curOff;
 			if (sim.editModeType == EditModeType::Metric)
 				sim.updateGraphEdges();
+			return true;
 		}
 		else
 		{
@@ -879,12 +855,13 @@ void Simulator2D::SelectAction::pollEvent(const sf::Event& event)
 				if (TryUpdateClosestCircle(coordDouble, curMinD2, agent->coord, agent->radius))
 					elemSelected = agent.get();
 			for (auto& goal : sim.goals)
-				if (TryUpdateClosestCircle(coordDouble, curMinD2, goal->coord, DEFAULT_GOAL_RADIUS))
+				if (TryUpdateClosestCircle(coordDouble, curMinD2, goal->coord, goal->r))
 					elemSelected = goal.get();
 		}
 	}
 	break;
 	}
+	return false;
 }
 
 void Simulator2D::SelectAction::draw()
@@ -897,7 +874,7 @@ void Simulator2D::SelectAction::draw()
 		c.setFillColor(sf::Color(20, 40, 200, 140));
 		c.setPosition(coordSelected);
 		PrepareCircleRadius(c, elemSelected->getRadius());
-		sim.window.draw(c);
+		sim.app->window.draw(c);
 	}
 }
 
@@ -925,7 +902,7 @@ void Simulator2D::AddAgentAction::placeItem(double x, double y)
 
 void Simulator2D::AddGoalAction::placeItem(double x, double y)
 {
-	sim.addGoal({ { x, y } });
+	sim.addGoal({ x, y });
 }
 
 Simulator2D::AddGoalAction::AddGoalAction(Simulator2D& sim) :
@@ -948,7 +925,7 @@ bool Simulator2D::LeftClickInterface::canMoveView()
 	return true;
 }
 
-void Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
+bool Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
 {
 	switch (event.type)
 	{
@@ -959,6 +936,7 @@ void Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
 		case sf::Mouse::Left:
 		{
 			didNotMoveSinceLastPress = true;
+			
 		}
 		break;
 		}
@@ -974,10 +952,12 @@ void Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
 			{
 				auto& x = event.mouseButton.x;
 				auto& y = event.mouseButton.y;
-				auto coord = sim.window.mapPixelToCoords({ x, y });
+				auto coord = sim.app->window.mapPixelToCoords({ x, y });
 				placeItem(static_cast<double>(coord.x), static_cast<double>(coord.y));
 				if (sim.editModeType == EditModeType::Metric)
 					sim.updateGraphEdges();
+
+				
 			}
 		}
 		break;
@@ -990,6 +970,7 @@ void Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
 	}
 	break;
 	}
+	return false;
 }
 
 Simulator2D::AddItemAction::AddItemAction(Simulator2D& sim) :
@@ -1004,7 +985,7 @@ void Simulator2D::AddEdgeAction::clear()
 	curGoal = nullptr;
 }
 
-void Simulator2D::AddEdgeAction::pollEvent(const sf::Event& event)
+bool Simulator2D::AddEdgeAction::pollEvent(const sf::Event& event)
 {
 	switch (event.type)
 	{
@@ -1017,7 +998,7 @@ void Simulator2D::AddEdgeAction::pollEvent(const sf::Event& event)
 			if (TryUpdateClosestCircle(coordDouble, curMinD2, agent->coord, agent->radius))
 				elemHoveredPtr = agent.get(), typeHovered = Type::Agent;
 		for (auto& goal : sim.goals)
-			if (TryUpdateClosestCircle(coordDouble, curMinD2, goal->coord, DEFAULT_GOAL_RADIUS))
+			if (TryUpdateClosestCircle(coordDouble, curMinD2, goal->coord, goal->r))
 				elemHoveredPtr = goal.get(), typeHovered = Type::Goal;
 	}
 	break;
@@ -1042,6 +1023,7 @@ void Simulator2D::AddEdgeAction::pollEvent(const sf::Event& event)
 	}
 	break;
 	}
+	return false;
 }
 
 Simulator2D::AddEdgeAction::AddEdgeAction(Simulator2D& sim) :
@@ -1064,7 +1046,7 @@ void Simulator2D::AddEdgeAction::draw()
 		c.setPosition(coord);
 		c.setFillColor(color);
 		PrepareCircleRadius(c, r);
-		sim.window.draw(c);
+		sim.app->window.draw(c);
 	};
 
 	if (elemHoveredPtr && elemHoveredPtr != curAgent && elemHoveredPtr != curGoal)

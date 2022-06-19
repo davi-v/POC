@@ -50,6 +50,9 @@
     <ClCompile Include="Application.cpp">
       <Filter>Application</Filter>
     </ClCompile>
+    <ClCompile Include="Hungarian.cpp">
+      <Filter>HungarianAlgorithm\Hungarian</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Simulator3D">
@@ -112,6 +115,12 @@
     <Filter Include="Application">
       <UniqueIdentifier>{ce39d046-129c-4e09-bd4f-ca945509d976}</UniqueIdentifier>
     </Filter>
+    <Filter Include="HungarianAlgorithm">
+      <UniqueIdentifier>{78bad536-abb1-4a6d-ba74-f399cc44d98c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="HungarianAlgorithm\Hungarian">
+      <UniqueIdentifier>{d5340967-841d-4277-9a97-a364dcd8fb24}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.hpp">
@@ -172,6 +181,9 @@
     </ClInclude>
     <ClInclude Include="Application.hpp">
       <Filter>Application</Filter>
+    </ClInclude>
+    <ClInclude Include="Hungarian.hpp">
+      <Filter>HungarianAlgorithm\Hungarian</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

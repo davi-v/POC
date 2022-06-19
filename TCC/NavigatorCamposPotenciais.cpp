@@ -2,10 +2,20 @@
 #include "NavigatorCamposPotenciais.hpp"
 
 #include "Utilities.hpp"
+#include "Application.hpp"
 #include "Simulator2D.hpp"
 #include "DrawUtil.hpp"
 
 static constexpr double ARBITRARY_CONSTANT = 3;
+
+std::vector<vec2d> NavigatorCamposPotenciais::getAgentPositions()
+{
+	auto n = agents.size();
+	std::vector<vec2d> r(n);
+	for (size_t i = 0; i != n; i++)
+		r.emplace_back(agents[i].cur);
+	return r;
+}
 
 vec2d NavigatorCamposPotenciais::getAttractionVec(const vec2d& c1, const vec2d& c2)
 {
@@ -67,12 +77,12 @@ void NavigatorCamposPotenciais::draw()
 	ImGui::InputDouble("Max Vel", &maxVel);
 	ImGui::Checkbox("Draw Radius", &drawRadius);
 
-	auto& window = simulator2D.window;
+	auto& window = simulator2D.app->window;
 
 	// destinations
 	auto& circle = simulator2D.circle;
 	circle.setFillColor(sf::Color::Green);
-	PrepareCircleRadius(circle, DEFAULT_GOAL_RADIUS);
+	PrepareCircleRadius(circle, simulator2D.r);
 	for (const auto& agent : agents)
 	{
 		circle.setPosition(agent.dst);
@@ -120,11 +130,11 @@ void NavigatorCamposPotenciais::updateTimeStep(float timeStep)
 	this->timeStep = timeStep;
 }
 
-NavigatorCamposPotenciais::NavigatorCamposPotenciais(Simulator2D& simulator2D) :
+NavigatorCamposPotenciais::NavigatorCamposPotenciais(Simulator2D& simulator2D, float r) :
 	maxVel(DEFAULT_AGENT_MAX_VELOCITY),
 	simulator2D(simulator2D),
 	timeStep(DEFAULT_TIME_STEP),
-	maxRadius(DEFAULT_CAMPOS_POTENCIAIS_RADIUS),
+	maxRadius(r),
 	drawRadius(true)
 {
 }
