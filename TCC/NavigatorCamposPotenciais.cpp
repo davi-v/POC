@@ -71,13 +71,16 @@ void NavigatorCamposPotenciais::tick()
 	}
 }
 
-void NavigatorCamposPotenciais::draw()
+void NavigatorCamposPotenciais::drawUI()
 {
 	ImGui::DragFloat("Max Radius", &maxRadius, 1.0f, 0, std::numeric_limits<float>::max());
 	ImGui::InputDouble("Max Vel", &maxVel);
 	ImGui::Checkbox("Draw Radius", &drawRadius);
+}
 
-	auto& window = simulator2D.app->window;
+void NavigatorCamposPotenciais::draw()
+{
+	auto& window = simulator2D.app.window;
 
 	// destinations
 	auto& circle = simulator2D.circle;
@@ -133,7 +136,6 @@ void NavigatorCamposPotenciais::updateTimeStep(float timeStep)
 NavigatorCamposPotenciais::NavigatorCamposPotenciais(Simulator2D& simulator2D, float r) :
 	maxVel(DEFAULT_AGENT_MAX_VELOCITY),
 	simulator2D(simulator2D),
-	timeStep(DEFAULT_TIME_STEP),
 	maxRadius(r),
 	drawRadius(true)
 {

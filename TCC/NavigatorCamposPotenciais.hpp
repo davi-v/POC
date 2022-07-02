@@ -6,7 +6,6 @@ class NavigatorCamposPotenciais : public NavigatorInterface
 {
 	std::vector<vec2d> getAgentPositions() override;
 
-	float timeStep;
 	Simulator2D& simulator2D;
 
 	double maxVel;
@@ -27,6 +26,7 @@ class NavigatorCamposPotenciais : public NavigatorInterface
 
 	void addAgent(const Agent2D& agent) override;
 	void tick() override;
+	void drawUI() override;
 	void draw() override;
 	void updateTimeStep(float timeStep) override;
 

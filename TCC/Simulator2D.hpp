@@ -4,7 +4,7 @@
 #include "NavigatorInterface.hpp"
 #include "SelectableEdge.hpp"
 
-static constexpr float DEFAULT_RADIUS = 15.f;
+static constexpr float DEFAULT_RADIUS = 3.f;
 
 #define SIMULATOR_EXT "tcc"
 
@@ -14,15 +14,16 @@ double distanceAgent(const Agent2D& agent, const Goal& goal);
 double distanceSquaredAgent(const Agent2D& agent, const Goal& goal);
 typedef double(*DistanceFunc)(const Agent2D& agent, const Goal& goal);
 
-static constexpr auto DEFAULT_AGENT_MAX_VELOCITY = 20.f; // em px/s
-static constexpr auto DEFAULT_TICKS_PER_SECOND = 144; // >= 1
-static constexpr float DEFAULT_TIME_STEP = 1.f / DEFAULT_TICKS_PER_SECOND;
+static constexpr auto DEFAULT_AGENT_MAX_VELOCITY = 40.f; // em px/s
 
 typedef std::vector<std::vector<double>> CostMatrix;
 typedef std::vector<std::pair<size_t, size_t>> Edges;
 class Application;
+
+
 class Simulator2D
 {
+
 	void updateOutlineColor();
 	void updateOutlineThickness();
 
@@ -33,16 +34,16 @@ class Simulator2D
 	void saveFile();
 	void tryOpenFile();
 
-	void defaultDraw();
+	void drawAgents(bool drawEdgeToGoal);
+	void drawGoals();
 
-	bool usingDistancesSquared = false;
+	bool usingDistancesSquared;
 	void updateDistanceSquaredVars();
 	bool hasAtLeast1Edge();
 
 	void createSelectedNavigator();
 
 	int tickRate;
-	float curTimeStep; // em segundos
 
 	sf::Font font;
 
@@ -60,17 +61,14 @@ class Simulator2D
 		rvo2,
 		CamposPotenciais
 	} curNavigator;
-
+public:
 	std::unique_ptr<NavigatorInterface> navigator;
-	float navigatorLastTickTimestamp;
-	float navigatorAccTs;
-
-	typedef int DistanceFunctionsUnderlyingType;
+private:
+	typedef bool DistanceFunctionsUnderlyingType; // bool bc only 2
 	enum class DistanceFunctionsEnum : DistanceFunctionsUnderlyingType
 	{
 		SumOfEachEdgeDistance,
-		SumOfEachEdgeDistanceSquared,
-		Count
+		SumOfEachEdgeDistanceSquared
 	} distanceFunctionUsingType;
 	static constexpr DistanceFunc DISTANCE_FUNCTIONS[]
 	{
@@ -80,7 +78,7 @@ class Simulator2D
 	DistanceFunc distanceFuncUsingCallback;
 
 	double currentMaxEdge, currentMaxEdgeSquared;
-	double currentTotalSumOfEachEdgeDistance, currentTotalSumOfEachEdgeDistanceSquared;
+	double currentTotalSumOfEachEdgeDistance, currentTotalSumOfEachEdgeDistanceSquared, variance;
 
 	// this function updates currentTotalSumOfEachEdgeDistance and currentTotalSumOfEachEdgeDistanceSquared
 	// if needsToUpdateMaxEdge, also updates currentMaxEdge
@@ -91,16 +89,14 @@ class Simulator2D
 
 	Edges getEdgesMinimizingBiggestEdgeAndUpdateInternalVariables();
 
-	enum class Metric
+	enum class Metric // must be int bc of imgui
 	{
 		MinimizeBiggestEdge,
 		MinimizeTotalSumOfEdges,
-		MinMaxEdgeThenSum,
-		
-		Count
+		MinMaxEdgeThenSum
 	} metric;
 
-	sf::Clock globalClock;
+	
 	std::deque<std::pair<const char*, sf::Time>> warnings;
 	void addMessage(const char* msg);
 
@@ -194,14 +190,16 @@ class Simulator2D
 
 public:
 	std::vector<std::unique_ptr<Agent2D>> agents; // usamos ponteiros para não mudar o endereço do objeto apontado quando o vetor é resized
-	Application* app;
-	Simulator2D(Application* app, float r);
+	Application& app;
+	Simulator2D(Application& app, float r);
 	void addAgent(const vec2d& c);
 	void addAgent(float x, float y);
 	void addGoal(const vec2d& coord);
-	void draw();
+	void clearGoals();
+
+	void draw(bool justInfo);
+
 	bool pollEvent(const sf::Event& event);
-	void clear();
 	void updateGraphEdges();
 
 	sf::Color getColor(float x, float y);
@@ -214,10 +212,14 @@ public:
 	} editModeType;
 
 	float percentageOutline = .1f;
-
+	sf::CircleShape circle;
 	float r;
 
-	sf::CircleShape circle;
+	std::vector<vec2d> getAgentsCoordinatesFromNavigator();
 
-	void leaveNavigatorUpdatingAgentsCoordinates();
+	void recreateNavigatorAndPlay();
+	void quitNavigator();
+	void clearAll();
+
+	bool navigatorOpened;
 };

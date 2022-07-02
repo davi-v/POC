@@ -17418,7 +17418,7 @@ static const char* GetClipboardTextFn_DefaultImpl(void*)
             if (PasteboardCopyItemFlavorData(main_clipboard, item_id, CFSTR("public.utf8-plain-text"), &cf_data) == noErr)
             {
                 ImGuiContext& g = *GImGui;
-                g.ClipboardHandlerData.clear();
+                g.ClipboardHandlerData.clearObjects();
                 int length = (int)CFDataGetLength(cf_data);
                 g.ClipboardHandlerData.resize(length + 1);
                 CFDataGetBytes(cf_data, CFRangeMake(0, length), (UInt8*)g.ClipboardHandlerData.Data);
@@ -17443,7 +17443,7 @@ static const char* GetClipboardTextFn_DefaultImpl(void*)
 static void SetClipboardTextFn_DefaultImpl(void*, const char* text)
 {
     ImGuiContext& g = *GImGui;
-    g.ClipboardHandlerData.clear();
+    g.ClipboardHandlerData.clearObjects();
     const char* text_end = text + strlen(text);
     g.ClipboardHandlerData.resize((int)(text_end - text) + 1);
     memcpy(&g.ClipboardHandlerData[0], text, (size_t)(text_end - text));

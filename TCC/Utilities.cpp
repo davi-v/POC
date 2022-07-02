@@ -1,6 +1,8 @@
 #include "Pch.hpp"
 #include "Utilities.hpp"
 
+sf::Clock globalClock;
+
 time_t GetCurTime()
 {
 	auto p = std::chrono::utc_clock::now();
@@ -93,4 +95,12 @@ sf::Color ToSFMLColor(float backgroundColor[3])
 		static_cast<sf::Uint8>(backgroundColor[1] * 255),
 		static_cast<sf::Uint8>(backgroundColor[2] * 255),
 	};
+}
+
+bool ShowRadiusOption(float& r, float maxR)
+{
+	auto ret = ImGui::DragFloat("Radius", &r);
+	if (ret)
+		r = std::min(std::max(r, .5f), maxR);
+	return ret;
 }

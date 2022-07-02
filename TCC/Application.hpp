@@ -4,7 +4,6 @@
 
 class Application
 {
-	typedef std::unique_ptr<sf::Image> ImgContent;
 	struct ViewerBase
 	{
 		enum class RenderType
@@ -16,26 +15,31 @@ class Application
 		} renderType = RenderType::Image;
 		virtual sf::Color getColor(const vec2f& c) = 0;
 		virtual void draw() = 0;
-		Application& app;
-		ViewerBase(Application& app);
 		virtual bool pollEvent(const sf::Event& e) = 0;
 
-		inline sf::RenderWindow& accessWindow()
-		{
-			return app.window;
-		}
-
 	};
-	struct ImgViewer : ViewerBase
+	class ImgViewer : public ViewerBase
 	{
-		void drawImpl(bool showOptions);
-		void addGoalsAndCalculateEdges();
+		sf::Color circleColorSFML;
+		float circleColorF3[3];
 
+	public:
+
+		void updatedRadiusCallback();
+
+		// advanced options are the options to open navigator
+		void drawUI(bool showAdvancedOptions);
+
+		void drawOpenNavigator();
+
+		void updatedRadiusCallback(float r);
+		void drawOverlays(bool justInfo, bool showGoalsExtraCond);
+		void updateNewGoalsAndCalculateEdges();
 		sf::Vector2f imageOffset;
 		bool pollEvent(const sf::Event& e) override;
 		sf::Color getColor(const vec2f& c) override;
 		sf::Image colorMapImage;
-		void addGoal(const sf::Vector2f& v);
+		
 		void addAgent(const sf::Vector2f& v);
 
 		size_t getNumRobotsAllocated();
@@ -91,13 +95,13 @@ class Application
 		// hx, hy : precomputed hexagon coord that pixelCenter is in
 		bool isPixelInsideSmallerHexagon(const sf::Vector2f& pixelCenter, int hx, int hy);
 
-		// depends on circle and hexagon
-		void updateSmallHexagonData();
+		// depends hexHeight and radius
+		void updateSmallHexagonDataThatDependOnHexHeightAndRadius();
 
 		void updateHexagonAuxiliarVariables();
 
 		// updates filter and color map
-		void circleRadiusUpdateCallback();
+		void recreateFilterTexture();
 
 		void signalNeedToUpdateHexPlot();
 		void updateHexVars();
@@ -112,7 +116,7 @@ class Application
 		// changes hexagon variables internally
 		size_t getNumCircles(float curHexSide);
 
-		void recalculateCircleCenters(); // should be called after updateVarsThatDependOnHexagonSideAndCircleRadius, since updateVarsThatDependOnHexagonSideAndCircleRadius can modify hexGridXMax and hexGridYMax
+		void recalculateGoalPositions(); // should be called after updateVarsThatDependOnHexagonSideAndCircleRadius, since updateVarsThatDependOnHexagonSideAndCircleRadius can modify hexGridXMax and hexGridYMax
 
 		void recalculateCircleCentersAndPlot();
 
@@ -122,9 +126,8 @@ class Application
 		// hexagon (0, 0) center is on (0, 0)
 		std::array<sf::Vector2f, 6> getHexagonCoords(int x, int y);
 		void showNRobotsOption();
-		Simulator2D sim;
 		bool highlightPixelHovered = false;
-		bool showCircleCenters = true;
+		bool showGoals = true;
 		bool showCircleBorderOnly = false;
 
 		float hexagonSide, hexHeight, hexagonHalfSide,
@@ -136,7 +139,8 @@ class Application
 			smallerHexRatio,
 			smallerHexHeight,
 			smallerHexHeightSquared;
-		void callbackRobotBased();
+		Simulator2D sim;
+		void calculateBestHexagonSideBasedOnNRobotsAndR();
 		
 
 		sf::Color hexGridColor = sf::Color::Red;
@@ -157,42 +161,58 @@ class Application
 		int numberOfBarsPrev = numberOfBars - 1;
 		std::vector<size_t> barData;
 		bool bestFitCircles = true;
-		bool yellowHexagonOnly = false;
+		bool yellowHexagonOnly = true;
 		bool clipToConfigurationSpace = true;
 		bool drawOrgOffsets = false;
 		std::vector<sf::Vertex> offsetsLines;
 		sf::Color offsetLinesColor = sf::Color::Green;
-		std::vector<sf::Vector2f> circleCenters;
+		std::vector<sf::Vector2f> goalsPositions;
 		bool showHexGrid = false;
 		bool highlightHexHovered = false;
 		bool showSmallerHexagon = false;
 		sf::Texture currentImageTexture, currentFilterTexture, colorMapTexture;
 		sf::Sprite currentImageSprite, currentFilterSprite, colorMapSprite;
 
-		ImgViewer(Application& app, std::unique_ptr<sf::Image>&& currentImage, float newR, size_t nR = DEFAULT_N_ROBOTS, bool calculateCircleCenters = true);
+		ImgViewer(Application& app, std::unique_ptr<sf::Image>&& currentImage, float r, size_t nR = DEFAULT_N_ROBOTS);
 
+		void updateRadiusNRobotsImg(float r, size_t n, const sf::Image& img);
 		void updateImg(const sf::Image& img);
-		void updateImgImpl(bool calculateCircleCenters = true);
+		void updateImgImpl();
 
 		void draw() override;
 		bool hexPlotReady = false;
 		bool isMarked(const sf::Color& c);
-		bool isNavigatorMenuOpened;
 	};
 	struct Sequencer : ViewerBase
 	{
+		void handleAutoPlayToggled();
+		
+		Application& app;
+		void calculateGoals(bool resetPositions);
+		
+
+		bool canPressPrev();
+		bool canPressNext();
+		void updateNewImageAndTryStartNavigator(size_t off);
+		void prev();
+		void next();
+
 		float r = DEFAULT_RADIUS;
+
+		bool autoPlay = false;
+
 		std::unique_ptr<ImgViewer> imgViewer;
 		bool pollEvent(const sf::Event& e) override;
 		sf::Color getColor(const vec2f& c) override;
 		Sequencer(Application& app);
 		size_t n = 50; // number of robots
-		std::vector<ImgContent> seqImgs;
+		std::vector<std::unique_ptr<sf::Image>> seqImgs;
 		size_t imgIndex = 0;
 		void draw() override;
-		void updateImg(bool resetPositions);
+
+		void processNewImage(bool resetPositions);
 	};
-	std::unique_ptr<ViewerBase> viewer;
+	std::unique_ptr<ViewerBase> viewerBase;
 	void createSequence();
 
 	sf::Color getSFBackgroundColor();
@@ -214,7 +234,6 @@ public:
 	
 
 	sf::Vector2f getWindowSizeF();
-
 
 	// according to SFML's documentation, it supports
 	// bmp, png, tga, jpg, gif, psd, hdr and pic

@@ -10,12 +10,12 @@
 void Application::ImgViewer::showNRobotsOption()
 {
 	if (ImGui::InputScalar("Number of Robots", ImGuiDataType_U64, &nRobotsBudget))
-		callbackRobotBased();
+		calculateBestHexagonSideBasedOnNRobotsAndR();
 }
 
 void Application::createSequence()
 {
-	viewer = std::make_unique<Sequencer>(*this);
+	viewerBase = std::make_unique<Sequencer>(*this);
 }
 
 sf::Color Application::getSFBackgroundColor()
@@ -28,13 +28,11 @@ bool Application::ImgViewer::isMarked(const sf::Color& c)
 	return c.a;
 }
 
-
-
-void Application::ImgViewer::callbackRobotBased()
+void Application::ImgViewer::calculateBestHexagonSideBasedOnNRobotsAndR()
 {
 	if (!nRobotsBudget)
 	{
-		Clear(offsetsLines, circleCenters);
+		Clear(offsetsLines, goalsPositions);
 		return;
 	}
 
@@ -54,16 +52,31 @@ void Application::ImgViewer::callbackRobotBased()
 	updateVarsThatDependOnCircleAndHexagon();
 }
 
-void Application::ImgViewer::drawImpl(bool showOptions)
+void Application::ImgViewer::updatedRadiusCallback()
 {
-	auto& window = accessWindow();
+	sim.r = r;
+
+	curMinHexagonSide = r * INV_SIN_60;
+	updateSmallHexagonDataThatDependOnHexHeightAndRadius();
+
+	if (yellowHexagonOnly) // mudar o raio não muda o número de círculos alocados se estamos ignorando o espaço de configuração
+		signalNeedToUpdateHexPlot();
+
+	recalculateGoalPositions();
+
+	recreateFilterTexture();
+}
+
+void Application::ImgViewer::drawUI(bool showAdvancedOptions)
+{
+	auto& window = sim.app.window;
 
 	if (ImGui::BeginMenu("Image"))
 	{
 		if (ImGui::MenuItem("Centralize"))
 		{
 			window.setView(window.getDefaultView());
-			app.zoomLevel = DEFAULT_ZOOM_LEVEL;
+			sim.app.zoomLevel = DEFAULT_ZOOM_LEVEL;
 		}
 
 		if (ImGui::BeginMenu("Rendering"))
@@ -79,8 +92,7 @@ void Application::ImgViewer::drawImpl(bool showOptions)
 			ImGui::EndMenu();
 		}
 
-		if (showOptions)
-		{
+
 			if (ImGui::BeginMenu("Pixel"))
 			{
 				ImGui::Checkbox("Highlight Hovered", &highlightPixelHovered);
@@ -89,19 +101,19 @@ void Application::ImgViewer::drawImpl(bool showOptions)
 
 			if (ImGui::BeginMenu("Circle"))
 			{
-				ImGui::Checkbox("Show", &showCircleCenters);
+				ImGui::Checkbox("Show", &showGoals);
+				if (ImGui::ColorEdit3("Color", circleColorF3))
+					circleColorSFML = ToSFMLColor(circleColorF3);
+
 				ImGui::Checkbox("Border Only", &showCircleBorderOnly);
-				if (ImGui::SliderFloat("Radius", &r, .5f, hexHeight))
+
+				if (showAdvancedOptions)
 				{
-					curMinHexagonSide = r * INV_SIN_60;
-					sim.r = r;
-					circleRadiusUpdateCallback();
-					updateSmallHexagonData();
-					if (yellowHexagonOnly) // mudar o raio não muda o número de círculos alocados se estamos ignorando o espaço de configuração
-						signalNeedToUpdateHexPlot();
-					recalculateCircleCenters();
+					if (ShowRadiusOption(r, hexHeight))
+						updatedRadiusCallback();
 				}
 				ImGui::Image(currentFilterSprite);
+
 				ImGui::EndMenu();
 			}
 
@@ -111,10 +123,13 @@ void Application::ImgViewer::drawImpl(bool showOptions)
 				ImGui::Checkbox("Show Configuration Space", &showSmallerHexagon);
 				ImGui::Checkbox("Highlight Hovered", &highlightHexHovered);
 
-				if (ImGui::SliderFloat("Side", &hexagonSide, curMinHexagonSide, curMaxHexagonSide))
-					updateVarsThatDependOnCircleAndHexagon();
+				if (showAdvancedOptions)
+				{
+					if (ImGui::SliderFloat("Side", &hexagonSide, curMinHexagonSide, curMaxHexagonSide))
+						updateVarsThatDependOnCircleAndHexagon();
+				}
 
-				ImGui::LabelText("Number of Circles Alocated", "%zu", circleCenters.size());
+				ImGui::LabelText("Number of Circles Alocated", "%zu", goalsPositions.size());
 
 				static constexpr int MAX_BARS = 1000;
 				if (ImGui::DragInt("Number of Bars", &numberOfBars, 1, 2, MAX_BARS, "%d", ImGuiSliderFlags_AlwaysClamp))
@@ -164,7 +179,7 @@ void Application::ImgViewer::drawImpl(bool showOptions)
 				if (ImGui::Combo("Type", reinterpret_cast<int*>(&allocationType), ALLOCATION_TYPES_NAMES, IM_ARRAYSIZE(ALLOCATION_TYPES_NAMES)))
 				{
 					if (allocationType == AllocationType::RobotBased)
-						callbackRobotBased();
+						calculateBestHexagonSideBasedOnNRobotsAndR();
 				}
 
 				ImGui::Checkbox("Draw Original Offsets", &drawOrgOffsets);
@@ -175,7 +190,7 @@ void Application::ImgViewer::drawImpl(bool showOptions)
 				if (!yellowHexagonOnly)
 					if (ImGui::Checkbox("Clip To Configuration Space", &clipToConfigurationSpace))
 						if (!yellowHexagonOnly)
-							recalculateCircleCenters();
+							recalculateGoalPositions();
 
 				if (allocationType == AllocationType::EditMode)
 				{
@@ -188,41 +203,50 @@ void Application::ImgViewer::drawImpl(bool showOptions)
 					showNRobotsOption();
 				ImGui::EndMenu();
 			}
-		}
+		
 
 		ImGui::EndMenu();
 	}
+}
 
-
-	if (ImGui::Checkbox("Navigation", &isNavigatorMenuOpened))
-	{
-		if (isNavigatorMenuOpened)
+void Application::ImgViewer::drawOpenNavigator()
+{
+	if (!sim.navigatorOpened)
+		if (ImGui::MenuItem("Open Navigator"))
 		{
-			if (showOptions)
-			{
-				// posição inicial dos robôs
-				size_t cnt = 0;
-				for (int i = 0; i != hexGridXMax; i++)
-					for (int j = 0; j != hexGridYMax; j++, cnt++)
-					{
-						if (cnt == nRobotsBudget)
-							break;
-						addAgent(getHexagonCenterInWorldSpace(i, j));
-					}
-			}
-			else
-				callbackRobotBased();
+			sim.navigatorOpened = true;
 
-			addGoalsAndCalculateEdges();
-		}
-		else
-		{
-			if (showOptions)
-				sim.clear();
+			size_t curBudget;
+			if (allocationType == AllocationType::EditMode)
+				curBudget = goalsPositions.size();
 			else
-				sim.leaveNavigatorUpdatingAgentsCoordinates();
+				curBudget = nRobotsBudget;
+
+			// posição inicial dos robôs
+			size_t cnt = 0;
+			for (int i = 0; i != hexGridXMax; i++)
+				for (int j = 0; j != hexGridYMax; j++, cnt++)
+				{
+					if (cnt == curBudget)
+						break;
+
+					addAgent(getHexagonCenterInWorldSpace(i, j));
+				}
+
+			updateNewGoalsAndCalculateEdges();
+
+			sim.editModeType = Simulator2D::EditModeType::Metric;
 		}
-	}
+}
+
+void Application::ImgViewer::updatedRadiusCallback(float newR)
+{
+	r = newR;
+}
+
+void Application::ImgViewer::drawOverlays(bool justInfo, bool showGoalsExtraCond)
+{
+	auto& window = sim.app.window;
 
 	switch (renderType)
 	{
@@ -238,178 +262,158 @@ void Application::ImgViewer::drawImpl(bool showOptions)
 	break;
 	}
 
-	if (isNavigatorMenuOpened)
-		sim.draw();
-	else
+	sim.draw(justInfo);
+	
+	if (showHexGrid)
 	{
-		if (showHexGrid)
-		{
-			for (int x = 0; x != hexGridXMax; x++)
-				for (int y = 0; y != hexGridYMax; y++)
-				{
-					auto coords = getHexagonCoords(x, y);
-					for (auto& coord : coords)
-						coord += imageOffset;
-					sf::Vertex vertices[12]
-					{
-						{coords[0], hexGridColor},
-						{coords[1], hexGridColor},
-						{coords[1], hexGridColor},
-						{coords[2], hexGridColor},
-						{coords[2], hexGridColor},
-						{coords[3], hexGridColor},
-						{coords[3], hexGridColor},
-						{coords[4], hexGridColor},
-						{coords[4], hexGridColor},
-						{coords[5], hexGridColor},
-						{coords[5], hexGridColor},
-						{coords[0], hexGridColor},
-					};
-					window.draw(vertices, 12, sf::Lines);
-				}
-		}
-		if (showCircleCenters)
-		{
-			sf::CircleShape circle{ r };
-			if (renderType != RenderType::RightColor)
+		for (int x = 0; x != hexGridXMax; x++)
+			for (int y = 0; y != hexGridYMax; y++)
 			{
-				if (showCircleBorderOnly)
+				auto coords = getHexagonCoords(x, y);
+				for (auto& coord : coords)
+					coord += imageOffset;
+				sf::Vertex vertices[12]
 				{
-					circle.setOutlineColor(circleBorderColor);
-					circle.setOutlineThickness(-r * .1f);
-					circle.setFillColor(sf::Color{}); // a gente só liga pro alpha = 0, mas a API não deixa	mexer só no alpha
+					{coords[0], hexGridColor},
+					{coords[1], hexGridColor},
+					{coords[1], hexGridColor},
+					{coords[2], hexGridColor},
+					{coords[2], hexGridColor},
+					{coords[3], hexGridColor},
+					{coords[3], hexGridColor},
+					{coords[4], hexGridColor},
+					{coords[4], hexGridColor},
+					{coords[5], hexGridColor},
+					{coords[5], hexGridColor},
+					{coords[0], hexGridColor},
+				};
+				window.draw(vertices, 12, sf::Lines);
+			}
+	}
+	if (showGoalsExtraCond && showGoals)
+	{
+		sf::CircleShape circle{ r };
+		if (showCircleBorderOnly)
+		{
+			circle.setOutlineColor(circleBorderColor);
+			circle.setOutlineThickness(-r * .1f);
+		}
+
+		circle.setOrigin(r, r);
+		
+		for (auto& circleCenter : goalsPositions)
+		{
+			circle.setPosition(circleCenter);
+			circle.setFillColor(getColor(circleCenter));
+			window.draw(circle);
+		}
+	}
+	if (showSmallerHexagon)
+	{
+		auto localCoords = getHexagonOffsets();
+		for (auto& coord : localCoords)
+			coord = coord * smallerHexRatio + imageOffset;
+
+		for (int x = 0; x != hexGridXMax; x++)
+			for (int y = 0; y != hexGridYMax; y++)
+			{
+				auto center = getHexagonCenterInLocalSpace(x, y);
+				auto coords = localCoords;
+				for (auto& coord : coords)
+					coord += center;
+				if (false)
+				{
+
+					sf::Vertex vertices[]
+					{
+						{coords[0], smallHexColor},
+						{coords[1], smallHexColor},
+						{coords[1], smallHexColor},
+						{coords[2], smallHexColor},
+						{coords[2], smallHexColor},
+						{coords[3], smallHexColor},
+						{coords[3], smallHexColor},
+						{coords[4], smallHexColor},
+						{coords[4], smallHexColor},
+						{coords[5], smallHexColor},
+						{coords[5], smallHexColor},
+						{coords[0], smallHexColor},
+					};
+					window.draw(vertices, sizeof(vertices) / sizeof(decltype(*vertices)), sf::Lines);
 				}
 				else
-					circle.setFillColor(circleBorderColor);
-			}
-
-			circle.setOrigin(r, r);
-			if (showOptions)
-				for (auto& circleCenter : circleCenters)
 				{
-					circle.setPosition(circleCenter);
-					circle.setFillColor(getColor(circleCenter));
-					window.draw(circle);
-				}
-			else
-			{
-				for (auto& agent : sim.agents)
-				{
-					vec2f circleCenter(
-						static_cast<float>(agent->coord.x),
-						static_cast<float>(agent->coord.y));
-					circle.setPosition(circleCenter);
-					circle.setFillColor(getColor(circleCenter));
-					window.draw(circle);
-				}
-			}
-		}
-		if (showSmallerHexagon)
-		{
-			auto localCoords = getHexagonOffsets();
-			for (auto& coord : localCoords)
-				coord = coord * smallerHexRatio + imageOffset;
-
-			for (int x = 0; x != hexGridXMax; x++)
-				for (int y = 0; y != hexGridYMax; y++)
-				{
-					auto center = getHexagonCenterInLocalSpace(x, y);
-					auto coords = localCoords;
-					for (auto& coord : coords)
-						coord += center;
-					if (false)
+					sf::Vertex vertices[]
 					{
-
-						sf::Vertex vertices[]
-						{
-							{coords[0], smallHexColor},
-							{coords[1], smallHexColor},
-							{coords[1], smallHexColor},
-							{coords[2], smallHexColor},
-							{coords[2], smallHexColor},
-							{coords[3], smallHexColor},
-							{coords[3], smallHexColor},
-							{coords[4], smallHexColor},
-							{coords[4], smallHexColor},
-							{coords[5], smallHexColor},
-							{coords[5], smallHexColor},
-							{coords[0], smallHexColor},
-						};
-						window.draw(vertices, sizeof(vertices) / sizeof(decltype(*vertices)), sf::Lines);
-					}
-					else
-					{
-						sf::Vertex vertices[]
-						{
-							{coords[0], smallHexColor},
-							{coords[1], smallHexColor},
-							{coords[2], smallHexColor},
-							{coords[3], smallHexColor},
-							{coords[4], smallHexColor},
-							{coords[5], smallHexColor},
-						};
-						window.draw(vertices, sizeof(vertices) / sizeof(decltype(*vertices)), sf::TriangleFan);
-					}
+						{coords[0], smallHexColor},
+						{coords[1], smallHexColor},
+						{coords[2], smallHexColor},
+						{coords[3], smallHexColor},
+						{coords[4], smallHexColor},
+						{coords[5], smallHexColor},
+					};
+					window.draw(vertices, sizeof(vertices) / sizeof(decltype(*vertices)), sf::TriangleFan);
 				}
-		}
-		if (highlightPixelHovered)
-		{
-			auto point = sf::Mouse::getPosition(window);
-			auto curPos = window.mapPixelToCoords(point);
-			curPos -= imageOffset;
-			auto size = currentImage->getSize();
-			auto wf = static_cast<float>(size.x);
-			auto hf = static_cast<float>(size.y);
-			if (curPos.x >= 0 && curPos.x < wf &&
-				curPos.y >= 0 && curPos.y < hf
-				)
-			{
-
-				auto pixelHoverColor = sf::Color(255, 0, 0, 120);
-				//auto pixelHoverColor = sf::Color(255 - c.r, 255 - c.g, 255 - c.b);
-
-				sf::RectangleShape rect{ {1,1} };
-				rect.setFillColor(pixelHoverColor);
-				rect.setOutlineColor(sf::Color::Red);
-				rect.setOutlineThickness(-0.1f);
-				rect.setPosition(
-					static_cast<float>(floor(curPos.x)) + imageOffset.x,
-					static_cast<float>(floor(curPos.y)) + imageOffset.y
-				);
-				window.draw(rect);
 			}
-		}
-		if (highlightHexHovered)
-		{
-			sf::VertexArray hexagon(sf::TriangleFan, 6);
-			auto point = sf::Mouse::getPosition(window);
-			auto coord = window.mapPixelToCoords(point);
-			coord -= imageOffset;
-			if (auto optHexagon = tryGetHexagonHovered(coord))
-			{
-				auto& [x, y] = *optHexagon;
-				auto coords = getHexagonCoords(x, y);
-				for (int i = 0; i != 6; i++)
-				{
-					auto& p = hexagon[i];
-					p.position = coords[i] + imageOffset;
-					p.color = hexHighlightColor;
-				}
-				window.draw(hexagon);
-			}
-		}
-		if (drawOrgOffsets)
-			window.draw(offsetsLines.data(), offsetsLines.size(), sf::Lines);
 	}
+	if (highlightPixelHovered)
+	{
+		auto point = sf::Mouse::getPosition(window);
+		auto curPos = window.mapPixelToCoords(point);
+		curPos -= imageOffset;
+		auto size = currentImage->getSize();
+		auto wf = static_cast<float>(size.x);
+		auto hf = static_cast<float>(size.y);
+		if (curPos.x >= 0 && curPos.x < wf &&
+			curPos.y >= 0 && curPos.y < hf
+			)
+		{
+
+			auto pixelHoverColor = sf::Color(255, 0, 0, 120);
+			//auto pixelHoverColor = sf::Color(255 - c.r, 255 - c.g, 255 - c.b);
+
+			sf::RectangleShape rect{ {1,1} };
+			rect.setFillColor(pixelHoverColor);
+			rect.setOutlineColor(sf::Color::Red);
+			rect.setOutlineThickness(-0.1f);
+			rect.setPosition(
+				static_cast<float>(floor(curPos.x)) + imageOffset.x,
+				static_cast<float>(floor(curPos.y)) + imageOffset.y
+			);
+			window.draw(rect);
+		}
+	}
+	if (highlightHexHovered)
+	{
+		sf::VertexArray hexagon(sf::TriangleFan, 6);
+		auto point = sf::Mouse::getPosition(window);
+		auto coord = window.mapPixelToCoords(point);
+		coord -= imageOffset;
+		if (auto optHexagon = tryGetHexagonHovered(coord))
+		{
+			auto& [x, y] = *optHexagon;
+			auto coords = getHexagonCoords(x, y);
+			for (int i = 0; i != 6; i++)
+			{
+				auto& p = hexagon[i];
+				p.position = coords[i] + imageOffset;
+				p.color = hexHighlightColor;
+			}
+			window.draw(hexagon);
+		}
+	}
+	if (drawOrgOffsets)
+		window.draw(offsetsLines.data(), offsetsLines.size(), sf::Lines);
 }
 
-void Application::ImgViewer::addGoalsAndCalculateEdges()
+void Application::ImgViewer::updateNewGoalsAndCalculateEdges()
 {
-	for (auto& circleCenter : circleCenters)
-		addGoal(circleCenter);
+	sim.clearGoals();
+
+	for (auto& v : goalsPositions)
+		sim.addGoal(vec2d{ static_cast<double>(v.x), static_cast<double>(v.y) });
 
 	sim.updateGraphEdges();
-	sim.editModeType = Simulator2D::EditModeType::Metric;
 }
 
 bool Application::ImgViewer::pollEvent(const sf::Event& e)
@@ -419,14 +423,17 @@ bool Application::ImgViewer::pollEvent(const sf::Event& e)
 
 sf::Color Application::ImgViewer::getColor(const vec2f& c)
 {
-	auto& [x, y] = c;
-
-	auto
-		wx = x - imageOffset.x,
-		wy = y - imageOffset.y;
+	if (showCircleBorderOnly)
+		return sf::Color{}; // a gente só liga pro alpha=0, mas como não tem como fazer isso pela API, bota RGB quaisquer
 
 	if (renderType == RenderType::RightColor)
 	{
+		auto& [x, y] = c;
+
+		auto
+			wx = x - imageOffset.x,
+			wy = y - imageOffset.y;
+
 		auto
 			xi = lround(wx),
 			yi = lround(wy);
@@ -436,18 +443,14 @@ sf::Color Application::ImgViewer::getColor(const vec2f& c)
 			unsigned
 				xu = xi,
 				yu = yi;
+
 			auto [width, height] = colorMapImage.getSize();
 			if (xu < width && yu < height)
 				return colorMapImage.getPixel(xi, yi);
 		}
-		return app.getSFBackgroundColor();
+		return sim.app.getSFBackgroundColor();
 	}
-	return sf::Color::Red;
-}
-
-void Application::ImgViewer::addGoal(const sf::Vector2f& v)
-{
-	sim.addGoal(vec2d{ static_cast<double>(v.x), static_cast<double>(v.y) });
+	return circleColorSFML;
 }
 
 void Application::ImgViewer::addAgent(const sf::Vector2f& v)
@@ -457,7 +460,7 @@ void Application::ImgViewer::addAgent(const sf::Vector2f& v)
 
 size_t Application::ImgViewer::getNumRobotsAllocated()
 {
-	return circleCenters.size();
+	return goalsPositions.size();
 }
 
 Application::Application(sf::RenderWindow& window) :
@@ -469,17 +472,17 @@ Application::Application(sf::RenderWindow& window) :
 
 }
 
-void Application::pollEvent(const sf::Event& event)
+void Application::pollEvent(const sf::Event& e)
 {
-	switch (event.type)
+	switch (e.type)
 	{
 	case sf::Event::KeyPressed:
 	{
-		switch (event.key.code)
+		switch (e.key.code)
 		{
 		case sf::Keyboard::O:
 		{
-			if (event.key.control)
+			if (e.key.control)
 				controlO();
 		}
 		break;
@@ -488,16 +491,16 @@ void Application::pollEvent(const sf::Event& event)
 	break;
 	}
 
-	if (viewer && viewer->pollEvent(event))
+	if (viewerBase && viewerBase->pollEvent(e))
 		return;
 
 	if (NotHoveringIMGui())
 	{
-		switch (event.type)
+		switch (e.type)
 		{
 		case sf::Event::MouseButtonPressed:
 		{
-			auto& data = event.mouseButton;
+			auto& data = e.mouseButton;
 			switch (data.button)
 			{
 			case sf::Mouse::Left:
@@ -512,32 +515,35 @@ void Application::pollEvent(const sf::Event& event)
 		}
 	}
 
-	switch (event.type)
+	switch (e.type)
 	{
 	case sf::Event::MouseWheelScrolled:
 	{
-		auto& scrollData = event.mouseWheelScroll;
-		zoomLevel -= scrollData.delta;
+		if (NotHoveringIMGui())
+		{
+			auto& scrollData = e.mouseWheelScroll;
+			zoomLevel -= scrollData.delta;
 
-		auto& px = scrollData.x;
-		auto& py = scrollData.y;
+			auto& px = scrollData.x;
+			auto& py = scrollData.y;
 
-		auto pixelCoord = sf::Vector2i{ px, py };
+			auto pixelCoord = sf::Vector2i{ px, py };
 
-		sf::View view = window.getView();
-		auto prevCoord = window.mapPixelToCoords(pixelCoord, view);
-		updateZoomFacAndViewSizeFromZoomLevel(view);
-		auto newCoord = window.mapPixelToCoords(pixelCoord, view);
-		view.move(prevCoord - newCoord);
+			sf::View view = window.getView();
+			auto prevCoord = window.mapPixelToCoords(pixelCoord, view);
+			updateZoomFacAndViewSizeFromZoomLevel(view);
+			auto newCoord = window.mapPixelToCoords(pixelCoord, view);
+			view.move(prevCoord - newCoord);
 
-		window.setView(view);
+			window.setView(view);
+		}
 	}
 	break;
 	case sf::Event::MouseMoved:
 	{
 		if (lastPxClickedX != -1) // if we are holding left click, move view of the world
 		{
-			auto& data = event.mouseMove;
+			auto& data = e.mouseMove;
 			auto& newX = data.x;
 			auto& newY = data.y;
 
@@ -552,7 +558,7 @@ void Application::pollEvent(const sf::Event& event)
 	break;
 	case sf::Event::MouseButtonReleased:
 	{
-		switch (event.mouseButton.button)
+		switch (e.mouseButton.button)
 		{
 		case sf::Mouse::Left:
 		{
@@ -598,8 +604,8 @@ void Application::draw()
 			ImGui::EndMenu();
 		}
 
-		if (viewer)
-			viewer->draw();
+		if (viewerBase)
+			viewerBase->draw();
 
 		ImGui::EndMainMenuBar();
 	}
@@ -610,7 +616,7 @@ void Application::draw()
 
 sf::Color Application::getColor(const vec2f& c)
 {
-	return viewer->getColor(c);
+	return viewerBase->getColor(c);
 }
 
 sf::Vector2f Application::ImgViewer::getHexagonCenterInLocalSpace(int x, int y)
@@ -653,7 +659,7 @@ bool Application::ImgViewer::isPixelInsideSmallerHexagon(const sf::Vector2f& pix
 	return len2 < smallerHexHeightSquared;
 }
 
-void Application::ImgViewer::updateSmallHexagonData()
+void Application::ImgViewer::updateSmallHexagonDataThatDependOnHexHeightAndRadius()
 {
 	const auto& a = hexHeight;
 	smallerHexRatio = (a - r) / a;
@@ -672,14 +678,14 @@ void Application::ImgViewer::updateHexagonAuxiliarVariables()
 	nHexagons = hexGridXMax * hexGridYMax;
 }
 
-void Application::ImgViewer::circleRadiusUpdateCallback()
+void Application::ImgViewer::recreateFilterTexture()
 {
-	auto side = static_cast<unsigned>(ceil(r));
+	auto side = static_cast<unsigned>(ceil(r * 2));
+	//auto side = static_cast<unsigned>(ceil(r));
 
 	sf::Image currentFilterImage;
 	currentFilterImage.create(side, side, sf::Color::White);
-	if (side % 2 == 0)
-		side++;
+
 	std::vector<float> filterValues(square(static_cast<size_t>(side)));
 	if (side == 1)
 		filterValues.front() = 1.f;
@@ -687,25 +693,34 @@ void Application::ImgViewer::circleRadiusUpdateCallback()
 	{
 		currentFilterImage.create(side, side);
 		auto mid = vec2f{ static_cast<float>(side) } *.5f;
-		auto max = square(mid - vec2f{ .5, .5 });
 
-		auto den = square(side * .2f);
-		auto invDen = 1.f / den;
+		auto std = static_cast<float>(side) * .5f / 3.f;
+		auto var = std * std;
+		auto G = [&](float x) // gaussiana com média 0
+		{
+			static constexpr auto e = std::numbers::e_v<float>;
+			return 1 / (std * sqrtf(2 * PI)) * powf(e, -.5f * square(x) / var);
+		};
+
+		auto M = G(0);
 
 		for (unsigned x = 0; x != side; x++)
 			for (unsigned y = 0; y != side; y++)
 			{
 				auto off = vec2f(x + .5f, y + .5f) - mid;
-				auto d2 = dot(off, off);
-				float strength = 1.f / (1.f + d2 * invDen);
+
+
+				float strength = G(length(off));
 				filterValues[x * side + y] = strength;
+
 				sf::Color color{
-					static_cast<sf::Uint8>(strength * 255),
-					static_cast<sf::Uint8>(strength * 255),
-					static_cast<sf::Uint8>(strength * 255)
+				static_cast<sf::Uint8>(strength / M * 255),
+				static_cast<sf::Uint8>(strength / M * 255),
+				static_cast<sf::Uint8>(strength / M * 255)
 				};
 				currentFilterImage.setPixel(x, y, color);
 			}
+
 		auto sum = std::accumulate(filterValues.begin(), filterValues.end(), 0.f);
 		for (auto& f : filterValues)
 			f /= sum;
@@ -715,7 +730,6 @@ void Application::ImgViewer::circleRadiusUpdateCallback()
 
 	colorMapImage = *currentImage; // hard bug to find. Opencv does things with pointers
 	auto mat = SFMLImageToOpenCVBGRA(colorMapImage);
-
 	cv::Mat kernel(side, side, CV_32F, (void*)filterValues.data());
 	cv::filter2D(mat, mat, -1, kernel);
 	CVBGRAToSFMLTextureAndImage(mat, colorMapTexture, colorMapImage);
@@ -730,13 +744,13 @@ void Application::ImgViewer::signalNeedToUpdateHexPlot()
 void Application::ImgViewer::updateHexVars()
 {
 	updateHexagonAuxiliarVariables();
-	updateSmallHexagonData();
+	updateSmallHexagonDataThatDependOnHexHeightAndRadius();
 }
 
 void Application::ImgViewer::updateVarsThatDependOnCircleAndHexagon()
 {
 	updateHexVars();
-	recalculateCircleCenters();
+	recalculateGoalPositions();
 }
 
 sf::Vector2i Application::ImgViewer::getHexagonHovered(sf::Vector2f& coord)
@@ -853,9 +867,9 @@ size_t Application::ImgViewer::getNumCircles(float curHexSide)
 	return r;
 }
 
-void Application::ImgViewer::recalculateCircleCenters()
+void Application::ImgViewer::recalculateGoalPositions()
 {
-	circleCenters.clear();
+	goalsPositions.clear();
 	if (allocationType == AllocationType::RobotBased || bestFitCircles)
 	{
 		// para cada pixel, calcula o quanto ele influencia cada smaller hexagon
@@ -912,7 +926,7 @@ void Application::ImgViewer::recalculateCircleCenters()
 								auto maxLen = smallerHexHeight / cosAngle;
 								dst = std::min(maxLen, curLen) * vec2f { uOff.x, -uOff.y } + hexCenter + imageOffset;
 							}
-					circleCenters.emplace_back(dst);
+					goalsPositions.emplace_back(dst);
 
 					offsetsLines.emplace_back(hexCenter + imageOffset, offsetLinesColor);
 					offsetsLines.emplace_back(dst, offsetLinesColor);
@@ -922,12 +936,12 @@ void Application::ImgViewer::recalculateCircleCenters()
 	else
 		for (int x = 0; x != hexGridXMax; x++)
 			for (int y = 0; y != hexGridYMax; y++)
-				circleCenters.emplace_back(getHexagonCenterInLocalSpace(x, y) + imageOffset);
+				goalsPositions.emplace_back(getHexagonCenterInLocalSpace(x, y) + imageOffset);
 }
 
 void Application::ImgViewer::recalculateCircleCentersAndPlot()
 {
-	recalculateCircleCenters();
+	recalculateGoalPositions();
 	signalNeedToUpdateHexPlot();
 }
 
@@ -973,7 +987,11 @@ void Application::controlO()
 		MakeUniquePtr(currentImage);
 
 		if (currentImage->loadFromFile(s))
-			viewer = std::make_unique<ImgViewer>(*this, std::move(currentImage), DEFAULT_RADIUS);
+		{
+			auto imgViewer = std::make_unique<ImgViewer>(*this, std::move(currentImage), DEFAULT_RADIUS);
+			imgViewer->updatedRadiusCallback();
+			viewerBase = std::move(imgViewer);
+		}
 		else
 		{
 			LOG("Error importing image ", path, '\n');
@@ -981,10 +999,94 @@ void Application::controlO()
 	}
 }
 
+void Application::Sequencer::handleAutoPlayToggled()
+{
+	if (autoPlay)
+		imgViewer->sim.recreateNavigatorAndPlay();
+	else
+		imgViewer->sim.quitNavigator();
+}
+
+void Application::Sequencer::calculateGoals(bool resetPositions)
+{
+	processNewImage(resetPositions);
+
+	imgViewer->calculateBestHexagonSideBasedOnNRobotsAndR();
+	imgViewer->updateNewGoalsAndCalculateEdges();
+	imgViewer->sim.editModeType = Simulator2D::EditModeType::Navigation;
+}
+
+bool Application::Sequencer::canPressPrev()
+{
+	return imgIndex;
+}
+
+bool Application::Sequencer::canPressNext()
+{
+	return seqImgs.size() && imgIndex != seqImgs.size() - 1;
+}
+
+void Application::Sequencer::updateNewImageAndTryStartNavigator(size_t off)
+{
+	imgIndex += off;
+
+	if (autoPlay)
+		imgViewer->sim.quitNavigator();
+
+	calculateGoals(false);
+
+	if (autoPlay)
+		imgViewer->sim.recreateNavigatorAndPlay();
+}
+
+void Application::Sequencer::prev()
+{
+	updateNewImageAndTryStartNavigator(-1);
+}
+
+void Application::Sequencer::next()
+{
+	updateNewImageAndTryStartNavigator(1);
+}
+
 bool Application::Sequencer::pollEvent(const sf::Event& e)
 {
 	if (imgViewer)
-		return imgViewer->sim.pollEvent(e);
+		if (imgViewer->pollEvent(e))
+			return true;
+
+	switch (e.type)
+	{
+	case sf::Event::KeyPressed:
+	{
+		switch (e.key.code)
+		{
+		case sf::Keyboard::Left:
+		{
+			if (canPressPrev())
+				prev();
+		}
+		break;
+		case sf::Keyboard::Right:
+		{
+			if (canPressNext())
+				next();
+		}
+		break;
+		case sf::Keyboard::Enter:
+		{
+			if (NotHoveringIMGui())
+			{
+				TOGGLE(autoPlay);
+				handleAutoPlayToggled();
+			}
+		}
+		break;
+		}
+	}
+	break;
+	}
+
 	return false;
 }
 
@@ -994,25 +1096,28 @@ sf::Color Application::Sequencer::getColor(const vec2f& c)
 }
 
 Application::Sequencer::Sequencer(Application& app) :
-	ViewerBase(app)
+	app(app)
 {
 	static constexpr const char* HARDCODED_PATHS[] = {
-		"exemplos/circle.png",
-		"exemplos/rect.png",
-		"exemplos/triangle.png",
-		"exemplos/horse.png",
-		"exemplos/happy.png",
-		"exemplos/horse-skel2.png",
+		//"exemplos/circle.png",
+		//"exemplos/rect.png",
+		//"exemplos/triangle.png",
+		//"exemplos/horse.png",
+		//"exemplos/happy.png",
+		//"exemplos/horse-skel2.png",
+		"exemplos/ufmg.png",
+		"exemplos/dcc.png",
 	};
 	for (auto& p : HARDCODED_PATHS)
 	{
-		ImgContent content;
+		std::unique_ptr<sf::Image> content;
 		MakeUniquePtr(content);
 		auto& img = *content;
 		img.loadFromFile(p);
 		seqImgs.emplace_back(std::move(content));
 	}
-	updateImg(true);
+
+	calculateGoals(true);
 }
 
 void Application::Sequencer::draw()
@@ -1021,143 +1126,146 @@ void Application::Sequencer::draw()
 	{
 		ImGui::PushItemFlag(ImGuiItemFlags_SelectableDontClosePopup, true);
 		ImGui::InputScalar("Number of Robots", ImGuiDataType_U64, &n);
-		ImGui::SliderFloat("Radius", &r, .5f, 1000.f);
+		if (ShowRadiusOption(r, 1000.f))
+			imgViewer->updatedRadiusCallback(r);
 
 		auto hasSomething = !seqImgs.empty();
 		if (ImGui::MenuItem("Reset Positions", NULL, false, hasSomething))
-			updateImg(true);
+		{
+			calculateGoals(true);
+			if (autoPlay)
+				imgViewer->sim.recreateNavigatorAndPlay();
+		}
 
-		if (ImGui::MenuItem("Prev", NULL, false, imgIndex))
-		{
-			imgIndex--;
-			updateImg(false);
-		}
-		if (ImGui::MenuItem("Next", NULL, false, seqImgs.size() && imgIndex != seqImgs.size() - 1))
-		{
-			imgIndex++;
-			updateImg(false);
-		}
+		if (ImGui::MenuItem("Prev", NULL, false, canPressPrev()))
+			prev();
+		if (ImGui::MenuItem("Next", NULL, false, canPressNext()))
+			next();
+		if (ImGui::MenuItem("Auto Play", NULL, &autoPlay))
+			handleAutoPlayToggled();
 
 		ImGui::PopItemFlag();
 		ImGui::EndMenu();
 	}
 
-	//if (!seqImgs.empty())
-	//{
-	//	auto& s = std::get<2>(*seqImgs[imgIndex]);
-	//	auto& window = accessWindow();
-	//	window.draw(s);
-	//}
-
 	if (imgViewer)
-		imgViewer->drawImpl(false);
+	{
+		// in the sequencer mode, we don't let it customize advanced options (radius and hex size), as it's controlled by the sequencer
+		imgViewer->drawUI(false);
+		imgViewer->drawOverlays(true, false);
+	}
 }
 
-void Application::Sequencer::updateImg(bool resetPositions)
+void Application::Sequencer::processNewImage(bool resetPositions)
 {
 	auto& img = *seqImgs[imgIndex];
-	if (resetPositions)
+
+	if (imgViewer)
+		imgViewer->updateRadiusNRobotsImg(r, n, img);
+	else
 	{
 		std::unique_ptr<sf::Image> imgPtr;
 		MakeUniquePtr(imgPtr, img);
-		MakeUniquePtr(imgViewer, app, std::move(imgPtr), r, n, false);
+		MakeUniquePtr(imgViewer, app, std::move(imgPtr), r, n);
+	}
 
+	if (resetPositions)
+	{
 		auto& sim = imgViewer->sim;
+		sim.clearAll();
+
 		auto H = static_cast<size_t>(floor(sqrt(n)));
 		auto W = n / H;
 		auto mod = n % H;
 		float spacing = 3.f;
 		auto off = r * spacing;
-		size_t cnt = 0;
+		auto& [sX, sY] = imgViewer->imageOffset;
+
 		for (size_t i = 0; i != W; i++)
 			for (size_t j = 0; j != H; j++)
-				sim.addAgent(i * off, j * off);
+				sim.addAgent(sX + i * off, sY + j * off);
 
 		auto lastRowY = H * off;
 		for (size_t i = 0; i != mod; i++)
-			sim.addAgent(i * off, lastRowY);
+			sim.addAgent(sX + i * off, sY + lastRowY);
 	}
-	else
-		imgViewer->updateImg(img);
 }
 
-Application::ImgViewer::ImgViewer(Application& app, std::unique_ptr<sf::Image>&& c, float newR, size_t nRobotsBudget, bool calculateCircleCenters) :
-	ViewerBase(app),
+Application::ImgViewer::ImgViewer(Application& app, std::unique_ptr<sf::Image>&& c, float newR, size_t nRobotsBudget) :
 	currentImage(std::move(c)),
-	isNavigatorMenuOpened(false),
-	sim(&app, newR),
 	r(newR),
-	nRobotsBudget(nRobotsBudget)
+	nRobotsBudget(nRobotsBudget),
+	sim(app, r),
+	circleColorSFML(sf::Color::Red),
+	circleColorF3{ 1, 0, 0 }
 {
 	currentFilterSprite.setScale(8, 8); // make each pixel 8 pixels
+	updateImgImpl();
+}
+
+void Application::ImgViewer::updateRadiusNRobotsImg(float newR, size_t newN, const sf::Image& img)
+{
+	nRobotsBudget = newN;
+	r = newR;
+	updateImg(img);
+	updatedRadiusCallback();
+}
+
+void Application::ImgViewer::updateImg(const sf::Image& img)
+{
+	*currentImage = img;
+	updateImgImpl();
+}
+
+void Application::ImgViewer::updateImgImpl()
+{
+	signalNeedToUpdateHexPlot(); // mudou a imagem
 
 	auto [width, height] = currentImage->getSize();
-	curMinHexagonSide = r / SIN_60;
 	{
 		auto rowsF = static_cast<float>(height);
 		vec2f p{ static_cast<float>(width), rowsF };
 		auto proj = projPointUAxis(p, HEX_AXIS[0]);
 		curMaxHexagonSide = std::max(rowsF, length(proj)) / SIN_60;
 	}
-	signalNeedToUpdateHexPlot();
 
-	updateImgImpl(calculateCircleCenters);
-}
-
-void Application::ImgViewer::updateImg(const sf::Image& img)
-{
-	*currentImage = img;
-	updateImgImpl(false);
-}
-
-void Application::ImgViewer::updateImgImpl(bool calculateCircleCenters)
-{
-	auto [width, height] = currentImage->getSize();
 	currentImageTexture.loadFromImage(*currentImage);
 	currentImageSprite.setTexture(currentImageTexture, true);
-
 
 	imgWF = static_cast<float>(width);
 	imgHF = static_cast<float>(height);
 
-	auto newImgCenter = app.getWindowSizeF() * .5f;
+	auto newImgCenter = sim.app.getWindowSizeF() * .5f;
 
 	auto halfX = imgWF * .5f;
 	auto halfY = imgHF * .5f;
 
-	auto fixSprite = [&](auto&& s)
+	auto centralizeSprite = [&](auto&& s)
 	{
 		s.setOrigin(halfX, halfY);
 		s.setPosition(newImgCenter);
 	};
-	fixSprite(currentImageSprite);
-	fixSprite(colorMapSprite);
+	centralizeSprite(currentImageSprite);
+	centralizeSprite(colorMapSprite);
 
 	sf::Vector2f prevImgCenter(
 		imgWF * .5f,
 		imgHF * .5f
 	);
 	imageOffset = newImgCenter - prevImgCenter;
+
 	hexagonSide = std::max(imgWF * 0.05f, curMinHexagonSide);
-
-	//updateVarsThatDependOnCircleAndHexagon();
 	updateHexVars();
-	if (calculateCircleCenters)
-		recalculateCircleCenters();
 
-	circleRadiusUpdateCallback();
+	recreateFilterTexture();
 }
 
 void Application::ImgViewer::draw()
 {
-	drawImpl(true);
+	drawUI(true);
+	drawOpenNavigator();
+	drawOverlays(false, !sim.navigatorOpened);
 }
-
-Application::ViewerBase::ViewerBase(Application& app) :
-	app(app)
-{
-}
-
 
 void Application::updateZoomFacAndViewSizeFromZoomLevel(sf::View& view)
 {

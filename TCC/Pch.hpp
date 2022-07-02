@@ -29,9 +29,6 @@
 #include <rvo2/RVO.h>
 #pragma comment(lib, "rvo2")
 
-#include <Hungarian.h>
-#pragma comment(lib, "Hungarian")
-
 #include "Logger.hpp"
 
 #include <imgui.h>

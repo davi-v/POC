@@ -1,0 +1,1 @@
+O arquivo opencv_world455d.dll tem mais de 100MB, então não é possível deixá-lo aqui, mas deixei ele em opencv_world455d.zip.

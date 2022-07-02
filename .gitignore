@@ -7,3 +7,6 @@ obj
 
 # arquivo muito pesado pro git
 bin/Debug/opencv_world455d.dll
+
+screenshots/
+imgui.ini

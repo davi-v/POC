@@ -4,17 +4,21 @@
 
 class NavigatorRVO2 : public NavigatorInterface
 {
+	void dumpCSV();
+
 	std::vector<vec2d> getAgentPositions() override;
 
-	float timeStep;
 	void addAgentImpl(const Agent2D& agent);
 
 	std::vector<const Agent2D*> orgAgents;
 
 	bool drawGoals;
+	bool drawTrajectories;
+	std::vector<std::vector<vec2f>> coordsThroughTime;
 
-	static constexpr float RADIUS_MULTIPLIER_FACTOR = 1.f;
-	static constexpr float DEFAULT_TIME_HORIZON = 5;
+	static constexpr float RADIUS_MULTIPLIER_FACTOR = 1.2f;
+
+	static constexpr float DEFAULT_TIME_HORIZON = 60;
 	static constexpr float DEFAULT_TIME_HORIZON_OBST = DEFAULT_TIME_HORIZON;
 
 	float neighbourDist;
@@ -31,9 +35,9 @@ class NavigatorRVO2 : public NavigatorInterface
 	Simulator2D& simulator2D;
 
 	void restart();
-	void init();
 	void addAgent(const Agent2D& agent) override;
 	void tick() override;
+	void drawUI() override;
 	void draw() override;
 	void updateTimeStep(float timeStep) override;
 
