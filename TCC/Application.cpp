@@ -112,7 +112,10 @@ void Application::ImgViewer::drawUI(bool showAdvancedOptions)
 					if (ShowRadiusOption(r, hexHeight))
 						updatedRadiusCallback();
 				}
+
+				ImGui::Begin("Filter");
 				ImGui::Image(currentFilterSprite);
+				ImGui::End();
 
 				ImGui::EndMenu();
 			}
@@ -1098,15 +1101,13 @@ sf::Color Application::Sequencer::getColor(const vec2f& c)
 Application::Sequencer::Sequencer(Application& app) :
 	app(app)
 {
-	static constexpr const char* HARDCODED_PATHS[] = {
-		//"exemplos/circle.png",
-		//"exemplos/rect.png",
-		//"exemplos/triangle.png",
-		//"exemplos/horse.png",
-		//"exemplos/happy.png",
-		//"exemplos/horse-skel2.png",
-		"exemplos/ufmg.png",
-		"exemplos/dcc.png",
+	static constexpr const char* HARDCODED_PATHS[] = { // por enquanto ainda não fiz a interface para imagens quaisquer
+		"exemplos/i1.png",
+		"exemplos/i2.png",
+		"exemplos/i3.png",
+		"exemplos/i4.png",
+		"exemplos/i5.png",
+		"exemplos/i6.png",
 	};
 	for (auto& p : HARDCODED_PATHS)
 	{

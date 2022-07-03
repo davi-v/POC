@@ -266,6 +266,9 @@ void Simulator2D::draw(bool justInfo)
 						tryOpenFile();
 				};
 
+				if (editModeType != EditModeType::Navigation)
+					navigator.reset();
+
 				switch (editModeType)
 				{
 				case EditModeType::Free:
@@ -307,7 +310,6 @@ void Simulator2D::draw(bool justInfo)
 						str += "\nvariance: " + std::to_string(variance);
 						ImGui::Text(str.c_str());
 					}
-
 					showFileActions();
 				}
 				break;
