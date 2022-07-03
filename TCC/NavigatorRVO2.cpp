@@ -10,7 +10,7 @@ NavigatorRVO2::NavigatorRVO2(Simulator2D& simulator2D, float neighbourDist) :
 	simulator2D(simulator2D),
 	neighbourDist(neighbourDist),
 	drawGoals(false),
-	drawTrajectories(true)
+	drawTrajectories(false)
 {
 	MakeUniquePtr(sim);
 	sim->setTimeStep(timeStep);
