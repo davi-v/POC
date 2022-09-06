@@ -100,6 +100,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.hpp</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -123,6 +124,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <DebugInformationFormat>None</DebugInformationFormat>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -144,6 +146,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.hpp</PrecompiledHeaderFile>
       <LanguageStandard>stdcpplatest</LanguageStandard>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -167,6 +170,7 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <DebugInformationFormat>None</DebugInformationFormat>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -202,6 +206,7 @@
     <ClCompile Include="Simulator2D.cpp" />
     <ClCompile Include="tinyfiledialogs.cpp" />
     <ClCompile Include="Utilities.cpp" />
+    <ClCompile Include="Voronoi.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Agent.hpp" />
@@ -209,6 +214,7 @@
     <ClInclude Include="ElemSelected.hpp" />
     <ClInclude Include="FileExplorer.hpp" />
     <ClInclude Include="Hungarian.hpp" />
+    <ClInclude Include="jc_voronoi.h" />
     <ClInclude Include="NavigatorCamposPotenciais.hpp" />
     <ClInclude Include="OpenCVSFML.hpp" />
     <ClInclude Include="SelectableEdge.hpp" />
@@ -226,6 +232,7 @@
     <ClInclude Include="TemplateUtils.hpp" />
     <ClInclude Include="tinyfiledialogs.h" />
     <ClInclude Include="Utilities.hpp" />
+    <ClInclude Include="Voronoi.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -23,6 +23,8 @@ class Application;
 
 class Simulator2D
 {
+	sf::Color voronoiLineColor;
+	bool drawVoronoi;
 
 	void updateOutlineColor();
 	void updateOutlineThickness();

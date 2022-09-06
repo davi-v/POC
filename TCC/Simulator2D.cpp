@@ -9,6 +9,24 @@
 #include "FileExplorer.hpp"
 #include "Hungarian.hpp"
 #include "Application.hpp"
+#include "Voronoi.hpp"
+
+bool ColorPicker3U32(const char* label, sf::Color& c, ImGuiColorEditFlags flags = 0)
+{
+
+	float col[3];
+	col[0] = c.r / 255.f;
+	col[1] = c.g / 255.f;
+	col[2] = c.b / 255.f;
+
+	bool result = ImGui::ColorPicker3(label, col, flags);
+
+	c.r = col[0] * 255.f;
+	c.g = col[1] * 255.f;
+	c.b = col[2] * 255.f;
+
+	return result;
+}
 
 const sf::Color Simulator2D::DEFAULT_GOAL_COLOR = sf::Color::Green;
 
@@ -106,6 +124,8 @@ void Simulator2D::clearGoals()
 }
 
 Simulator2D::Simulator2D(Application& app, float r) :
+	voronoiLineColor(sf::Color::White),
+	drawVoronoi(false),
 	app(app),
 	editModeType(EditModeType::Free),
 	r(r),
@@ -253,6 +273,10 @@ void Simulator2D::draw(bool justInfo)
 						}
 					}
 
+					ImGui::Checkbox("Voronoi", &drawVoronoi);
+
+					ColorPicker3U32("Voronoi Lines Color", voronoiLineColor, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha);
+
 					if (!agents.empty() || !goals.empty())
 						if (ImGui::Button("Clear"))
 							Clear(agents, goals);
@@ -361,6 +385,7 @@ void Simulator2D::draw(bool justInfo)
 	}
 	else
 	{
+		auto& w = app.window;
 		for (auto& agent : agents)
 		{
 			vec2f circleCenter(
@@ -369,7 +394,32 @@ void Simulator2D::draw(bool justInfo)
 			circle.setPosition(circleCenter);
 			circle.setFillColor(app.getColor(circleCenter));
 			PrepareCircleRadius(circle, r);
-			app.window.draw(circle);
+			w.draw(circle);
+		}
+
+		if (drawVoronoi)
+		{
+			std::vector<vec2d> coords;
+			for (auto& agent : agents)
+				coords.emplace_back(agent->coord);
+			auto& imgViewer = app.viewerBase->accessImgViewer();
+			auto& mapBorderCoord = imgViewer.mapBorderCoord;
+			auto& mapBorderSize = imgViewer.mapBorderSize;
+
+			sf::Rect<double> rect{
+				mapBorderCoord.x, mapBorderCoord.y,
+				mapBorderSize.x, mapBorderSize.y
+			};
+			Voronoi voronoi{ coords, rect };
+			for (const auto& [p0, p1] : voronoi.getEdges())
+			{
+				sf::Vertex v[2]
+				{
+					{ { (float)p0.x, (float)p0.y}, voronoiLineColor },
+					{ { (float)p1.x, (float)p1.y}, voronoiLineColor },
+				};
+				w.draw(v, 2, sf::Lines);
+			}
 		}
 	}
 

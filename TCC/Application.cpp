@@ -52,6 +52,11 @@ void Application::ImgViewer::calculateBestHexagonSideBasedOnNRobotsAndR()
 	updateVarsThatDependOnCircleAndHexagon();
 }
 
+Application::ImgViewer& Application::ImgViewer::accessImgViewer()
+{
+	return *this;
+}
+
 void Application::ImgViewer::updatedRadiusCallback()
 {
 	sim.r = r;
@@ -88,6 +93,8 @@ void Application::ImgViewer::drawUI(bool showAdvancedOptions)
 					"Right Colors"
 			};
 			ImGui::Combo("Render Type", reinterpret_cast<int*>(&renderType), RENDER_TYPES_NAMES, IM_ARRAYSIZE(RENDER_TYPES_NAMES));
+
+			ImGui::Checkbox("Border", &border);
 
 			ImGui::EndMenu();
 		}
@@ -407,6 +414,17 @@ void Application::ImgViewer::drawOverlays(bool justInfo, bool showGoalsExtraCond
 	}
 	if (drawOrgOffsets)
 		window.draw(offsetsLines.data(), offsetsLines.size(), sf::Lines);
+
+	if (border)
+	{
+		sf::RectangleShape borderDrawing{ mapBorderSize };
+		
+		borderDrawing.setPosition(mapBorderCoord);
+		borderDrawing.setFillColor(sf::Color{ 0 });
+		borderDrawing.setOutlineColor(sf::Color::White);
+		borderDrawing.setOutlineThickness(2.f);
+		window.draw(borderDrawing);
+	}
 }
 
 void Application::ImgViewer::updateNewGoalsAndCalculateEdges()
@@ -1002,6 +1020,11 @@ void Application::controlO()
 	}
 }
 
+Application::ImgViewer& Application::Sequencer::accessImgViewer()
+{
+	return *imgViewer;
+}
+
 void Application::Sequencer::handleAutoPlayToggled()
 {
 	if (autoPlay)
@@ -1193,6 +1216,7 @@ void Application::Sequencer::processNewImage(bool resetPositions)
 }
 
 Application::ImgViewer::ImgViewer(Application& app, std::unique_ptr<sf::Image>&& c, float newR, size_t nRobotsBudget) :
+	border(false),
 	currentImage(std::move(c)),
 	r(newR),
 	nRobotsBudget(nRobotsBudget),
@@ -1255,8 +1279,19 @@ void Application::ImgViewer::updateImgImpl()
 	);
 	imageOffset = newImgCenter - prevImgCenter;
 
+
 	hexagonSide = std::max(imgWF * 0.05f, curMinHexagonSide);
 	updateHexVars();
+
+	mapBorderCoord = imageOffset;
+	mapBorderCoord.x -= hexagonSide;
+	mapBorderCoord.y -= hexHeight;
+
+	mapBorderSize = {
+		(hexGridXMax - 1) * hexagonStride + 2 * hexagonSide,
+		hexHeight * (hexGridYMax * 2 + 1),
+		//hexGridYMax * 2 * hexHeight + hexHeight,
+	};
 
 	recreateFilterTexture();
 }

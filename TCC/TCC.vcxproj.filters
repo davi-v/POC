@@ -53,11 +53,11 @@
     <ClCompile Include="Hungarian.cpp">
       <Filter>Hungarian</Filter>
     </ClCompile>
+    <ClCompile Include="Voronoi.cpp">
+      <Filter>Voronoi</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="Simulator2D">
-      <UniqueIdentifier>{78982bce-627e-4218-b57d-d80c806badb1}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Hopcroft">
       <UniqueIdentifier>{42d3a841-9fe6-413e-ac3d-c6a679225a59}</UniqueIdentifier>
     </Filter>
@@ -70,29 +70,8 @@
     <Filter Include="Logger">
       <UniqueIdentifier>{1bb16075-30d0-48fa-9ca1-21c768f0557b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Simulator2D\Goal">
-      <UniqueIdentifier>{a113a22f-4637-423d-b9b3-c692e2fbea44}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\Agent2D">
-      <UniqueIdentifier>{2f2e9312-6d06-4fba-a3c4-5ed6673323e2}</UniqueIdentifier>
-    </Filter>
     <Filter Include="DrawUtil">
       <UniqueIdentifier>{e9853e7a-27e8-4f1d-8759-06c03dae2d67}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\vec2">
-      <UniqueIdentifier>{f9be909d-ae22-4f69-b89e-0cf25fbe49d4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\Navigators">
-      <UniqueIdentifier>{5e006226-520d-475e-b6d5-0003b86fb9e4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\Navigators\Campos Potenciais">
-      <UniqueIdentifier>{10ee16e9-461a-4ade-84ba-edc88c8c4c78}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\Navigators\rvo2">
-      <UniqueIdentifier>{835b72e5-305f-4f38-aae4-bf10e46cb886}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Simulator2D\SelectableEdge">
-      <UniqueIdentifier>{7bd90430-b943-49f9-a064-ea787fc2eb24}</UniqueIdentifier>
     </Filter>
     <Filter Include="ElemSelected">
       <UniqueIdentifier>{bd6f6231-09a6-4167-991f-7fcc2e64150a}</UniqueIdentifier>
@@ -114,6 +93,33 @@
     </Filter>
     <Filter Include="Hungarian">
       <UniqueIdentifier>{d5340967-841d-4277-9a97-a364dcd8fb24}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D">
+      <UniqueIdentifier>{78982bce-627e-4218-b57d-d80c806badb1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Goal">
+      <UniqueIdentifier>{a113a22f-4637-423d-b9b3-c692e2fbea44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Agent2D">
+      <UniqueIdentifier>{2f2e9312-6d06-4fba-a3c4-5ed6673323e2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\vec2">
+      <UniqueIdentifier>{f9be909d-ae22-4f69-b89e-0cf25fbe49d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Navigators">
+      <UniqueIdentifier>{5e006226-520d-475e-b6d5-0003b86fb9e4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Navigators\Campos Potenciais">
+      <UniqueIdentifier>{10ee16e9-461a-4ade-84ba-edc88c8c4c78}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Navigators\rvo2">
+      <UniqueIdentifier>{835b72e5-305f-4f38-aae4-bf10e46cb886}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\SelectableEdge">
+      <UniqueIdentifier>{7bd90430-b943-49f9-a064-ea787fc2eb24}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Voronoi">
+      <UniqueIdentifier>{76f0c10b-54a0-4aea-9d7d-2149e7112c4d}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -178,6 +184,12 @@
     </ClInclude>
     <ClInclude Include="Hungarian.hpp">
       <Filter>Hungarian</Filter>
+    </ClInclude>
+    <ClInclude Include="jc_voronoi.h">
+      <Filter>Voronoi</Filter>
+    </ClInclude>
+    <ClInclude Include="Voronoi.hpp">
+      <Filter>Voronoi</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

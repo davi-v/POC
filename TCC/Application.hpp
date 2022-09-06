@@ -4,6 +4,7 @@
 
 class Application
 {
+	class ImgViewer;
 	struct ViewerBase
 	{
 		enum class RenderType
@@ -16,15 +17,17 @@ class Application
 		virtual sf::Color getColor(const vec2f& c) = 0;
 		virtual void draw() = 0;
 		virtual bool pollEvent(const sf::Event& e) = 0;
-
+		virtual ImgViewer& accessImgViewer() = 0;
 	};
 	class ImgViewer : public ViewerBase
 	{
 		sf::Color circleColorSFML;
 		float circleColorF3[3];
 
-	public:
+		bool border;
 
+	public:
+		ImgViewer& accessImgViewer() override;
 		void updatedRadiusCallback();
 
 		// advanced options are the options to open navigator
@@ -35,7 +38,7 @@ class Application
 		void updatedRadiusCallback(float r);
 		void drawOverlays(bool justInfo, bool showGoalsExtraCond);
 		void updateNewGoalsAndCalculateEdges();
-		sf::Vector2f imageOffset;
+		sf::Vector2f imageOffset, mapBorderCoord, mapBorderSize;
 		bool pollEvent(const sf::Event& e) override;
 		sf::Color getColor(const vec2f& c) override;
 		sf::Image colorMapImage;
@@ -185,6 +188,7 @@ class Application
 	};
 	struct Sequencer : ViewerBase
 	{
+		ImgViewer& accessImgViewer() override;
 		void handleAutoPlayToggled();
 		
 		Application& app;
@@ -212,7 +216,6 @@ class Application
 
 		void processNewImage(bool resetPositions);
 	};
-	std::unique_ptr<ViewerBase> viewerBase;
 	void createSequence();
 
 	sf::Color getSFBackgroundColor();
@@ -223,6 +226,7 @@ class Application
 
 
 public:
+	std::unique_ptr<ViewerBase> viewerBase;
 	Application(sf::RenderWindow& window);
 	void pollEvent(const sf::Event& event);
 	void draw();
