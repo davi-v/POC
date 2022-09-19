@@ -6,7 +6,7 @@ class NavigatorCamposPotenciais : public NavigatorInterface
 {
 	std::vector<vec2d> getAgentPositions() override;
 
-	Simulator2D& simulator2D;
+	Simulator2D& sim;
 
 	double maxVel;
 

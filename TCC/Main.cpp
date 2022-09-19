@@ -6,12 +6,14 @@
 #include "Application.hpp"
 #include "OpenCVSFML.hpp"
 
+#include <Windows.h>
+
 static const std::string SCREENSHOTS_DIR = "screenshots/";
 static constexpr auto SCREENSHOT_EXT = ".png";
 
 #define USE_CUSTOM_FONT_IN_IMGUI
 
-int main()
+void run()
 {
 	sf::RenderWindow window{
 #ifdef _DEBUG
@@ -38,50 +40,58 @@ int main()
 #endif
 
 	ImPlot::CreateContext();
-
-	Application application{ window };
-
+	Application app{ window };
 	sf::Event event;
-	sf::Clock c;
+	sf::Clock clk;
 	while (window.isOpen())
 	{
 		while (window.pollEvent(event))
 		{
-			application.pollEvent(event);
+			app.pollEvent(event);
 			ImGui::SFML::ProcessEvent(window, event);
 			switch (event.type)
 			{
-				case sf::Event::Closed:
+			case sf::Event::Closed:
+			{
+				window.close();
+			}
+			break;
+			case sf::Event::KeyPressed:
+			{
+				switch (event.key.code)
 				{
-					window.close();
+				case sf::Keyboard::F2: // screenshot
+				{
+					std::filesystem::create_directory(SCREENSHOTS_DIR);
+					sf::Texture tex;
+					auto [x, y] = window.getSize();
+					tex.create(x, y);
+					tex.update(window);
+					auto img = tex.copyToImage();
+					auto f = GetUniqueNameWithCurrentTime(SCREENSHOTS_DIR, SCREENSHOT_EXT);
+					img.saveToFile(f);
 				}
 				break;
-				case sf::Event::KeyPressed:
-				{
-					switch (event.key.code)
-					{
-					case sf::Keyboard::F2: // screenshot
-					{
-						std::filesystem::create_directory(SCREENSHOTS_DIR);
-						sf::Texture tex;
-						auto [x, y] = window.getSize();
-						tex.create(x, y);
-						tex.update(window);
-						auto img = tex.copyToImage();
-						auto f = GetUniqueNameWithCurrentTime(SCREENSHOTS_DIR, SCREENSHOT_EXT);
-						img.saveToFile(f);
-					}
-					break;
-					}
 				}
-				break;
+			}
+			break;
 			}
 		}
-		
-		ImGui::SFML::Update(window, c.restart());
-
-		application.draw();
+		ImGui::SFML::Update(window, clk.restart());
+		app.draw();
 	}
 	ImPlot::DestroyContext();
 	ImGui::SFML::Shutdown();
+}
+
+int main()
+{
+	try
+	{
+		run();
+	}
+	catch (const std::exception& e)
+	{
+		MessageBoxA(0, "Um erro irrecuperável ocorreu, como falta de memória", e.what(), MB_OK);
+	}
 }

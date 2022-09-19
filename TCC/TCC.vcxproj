@@ -115,7 +115,7 @@
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
+      <SDLCheck>false</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)include\;$(SolutionDir)imgui\;$(SolutionDir)Hungarian\;$(SolutionDir);$(SolutionDir)implot\</AdditionalIncludeDirectories>
@@ -161,7 +161,7 @@
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
+      <SDLCheck>false</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)include\;$(SolutionDir)imgui\;$(SolutionDir)Hungarian\;$(SolutionDir);$(SolutionDir)implot\</AdditionalIncludeDirectories>
@@ -190,10 +190,12 @@
     <ClCompile Include="Goal.cpp" />
     <ClCompile Include="Hopcroft.cpp" />
     <ClCompile Include="Hungarian.cpp" />
+    <ClCompile Include="ImgViewer.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="NavigatorCamposPotenciais.cpp" />
     <ClCompile Include="NavigatorInterface.cpp" />
     <ClCompile Include="NavigatorRVO2.cpp" />
+    <ClCompile Include="NavigatorVoronoi.cpp" />
     <ClCompile Include="OpenCVSFML.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -201,12 +203,18 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Previewer.cpp" />
+    <ClCompile Include="PreviewHex.cpp" />
+    <ClCompile Include="PreviewVoronoi.cpp" />
     <ClCompile Include="Random.cpp" />
     <ClCompile Include="SelectableEdge.cpp" />
+    <ClCompile Include="Sequencer.cpp" />
     <ClCompile Include="Simulator2D.cpp" />
     <ClCompile Include="tinyfiledialogs.cpp" />
     <ClCompile Include="Utilities.cpp" />
+    <ClCompile Include="ViewerBase.cpp" />
     <ClCompile Include="Voronoi.cpp" />
+    <ClCompile Include="VoronoiInfo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Agent.hpp" />
@@ -214,10 +222,16 @@
     <ClInclude Include="ElemSelected.hpp" />
     <ClInclude Include="FileExplorer.hpp" />
     <ClInclude Include="Hungarian.hpp" />
+    <ClInclude Include="ImgViewer.hpp" />
     <ClInclude Include="jc_voronoi.h" />
     <ClInclude Include="NavigatorCamposPotenciais.hpp" />
+    <ClInclude Include="NavigatorVoronoi.hpp" />
     <ClInclude Include="OpenCVSFML.hpp" />
+    <ClInclude Include="Previewer.hpp" />
+    <ClInclude Include="PreviewHex.hpp" />
+    <ClInclude Include="PreviewVoronoi.hpp" />
     <ClInclude Include="SelectableEdge.hpp" />
+    <ClInclude Include="Sequencer.hpp" />
     <ClInclude Include="vec2.hpp" />
     <ClInclude Include="DefineUtils.hpp" />
     <ClInclude Include="DrawUtil.hpp" />
@@ -232,7 +246,9 @@
     <ClInclude Include="TemplateUtils.hpp" />
     <ClInclude Include="tinyfiledialogs.h" />
     <ClInclude Include="Utilities.hpp" />
+    <ClInclude Include="ViewerBase.hpp" />
     <ClInclude Include="Voronoi.hpp" />
+    <ClInclude Include="VoronoiInfo.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -10,18 +10,27 @@ struct vec2_t
 	T x, y;
 	operator sf::Vector2f() const;
 	operator RVO::Vector2() const;
-	operator bool() const;
+	explicit operator bool() const;
 	vec2_t operator-(const vec2_t& other) const;
 	vec2_t operator+(const vec2_t& other) const;
 	vec2_t operator*(T other) const;
 	vec2_t operator/(T other) const;
 	vec2_t<T>& operator+=(const vec2_t<T>& other);
+	vec2_t<T>& operator-=(const vec2_t<T>& other);
 	vec2_t<T>& operator*=(T other);
+	vec2_t& normalize();
 	bool tryNormalize();
 };
 
 typedef vec2_t<float> vec2f;
 typedef vec2_t<double> vec2d;
+
+template<class T>bool operator==(const vec2_t<T>& a, const vec2_t<T>& b);
+template<class T>vec2_t<T> operator-(const vec2_t<T>& v);
+
+
+template<class T>
+vec2_t<T> normalize(const vec2_t<T>& v);
 
 template<class T>
 T dot(const vec2_t<T>& v1, const vec2_t<T>& v2)
@@ -48,9 +57,6 @@ auto length(const vec2_t<T>& v)
 {
 	return sqrt(dot(v, v));
 }
-
-template<class T>
-vec2_t<T> normalize(const vec2_t<T>& v);
 
 template<class T>
 vec2_t<T> operator*(T s, const vec2_t<T>& v);
@@ -134,9 +140,25 @@ inline vec2_t<T>& vec2_t<T>::operator+=(const vec2_t<T>& other)
 }
 
 template<class T>
+inline vec2_t<T>& vec2_t<T>::operator-=(const vec2_t<T>& other)
+{
+	x -= other.x;
+	y -= other.y;
+	return *this;
+}
+
+template<class T>
 inline vec2_t<T>& vec2_t<T>::operator*=(T other)
 {
 	return x *= other, y *= other, *this;
+}
+
+template<class T>
+inline vec2_t<T>& vec2_t<T>::normalize()
+{
+	auto& v = *this;
+	v = v / length(v);
+	return v;
 }
 
 template<class T>
@@ -144,16 +166,29 @@ inline bool vec2_t<T>::tryNormalize()
 {
 	if (*this)
 	{
-		*this = normalize(*this);
+		normalize();
 		return true;
 	}
 	return false;
 }
 
 template<class T>
+inline bool operator==(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+	return a.x == b.x && a.y == b.y;
+}
+
+template<class T>
+inline vec2_t<T> operator-(const vec2_t<T>& v)
+{
+	return vec2_t<T>(-v.x, -v.y);
+}
+
+template<class T>
 inline vec2_t<T> normalize(const vec2_t<T>& v)
 {
-	return v / length(v);
+	auto ret = v;
+	return ret.normalize();
 }
 
 template<class T>

@@ -80,12 +80,12 @@ void NavigatorCamposPotenciais::drawUI()
 
 void NavigatorCamposPotenciais::draw()
 {
-	auto& window = simulator2D.app.window;
+	auto& window = sim.app.window;
 
 	// destinations
-	auto& circle = simulator2D.circle;
+	auto& circle = sim.circle;
 	circle.setFillColor(sf::Color::Green);
-	PrepareCircleRadius(circle, simulator2D.r);
+	PrepareCircleRadius(circle, sim.r);
 	for (const auto& agent : agents)
 	{
 		circle.setPosition(agent.dst);
@@ -133,10 +133,12 @@ void NavigatorCamposPotenciais::updateTimeStep(float timeStep)
 	this->timeStep = timeStep;
 }
 
-NavigatorCamposPotenciais::NavigatorCamposPotenciais(Simulator2D& simulator2D, float r) :
+NavigatorCamposPotenciais::NavigatorCamposPotenciais(Simulator2D& sim, float r) :
 	maxVel(DEFAULT_AGENT_MAX_VELOCITY),
-	simulator2D(simulator2D),
+	sim(sim),
 	maxRadius(r),
 	drawRadius(true)
 {
+	for (const auto& agent : sim.agents)
+		addAgent(*agent);
 }

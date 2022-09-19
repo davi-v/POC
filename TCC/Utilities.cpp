@@ -10,6 +10,11 @@ time_t GetCurTime()
 	return duration_cast<seconds>(p.time_since_epoch()).count();
 }
 
+sf::Vector2f ToFloat(const sf::Vector2u& p)
+{
+	return { (float)p.x, (float)p.y };
+}
+
 bool TimeToFormat(time_t t, const char* format, std::string& out)
 {
 	tm buf;
@@ -99,8 +104,82 @@ sf::Color ToSFMLColor(float backgroundColor[3])
 
 bool ShowRadiusOption(float& r, float maxR)
 {
-	auto ret = ImGui::DragFloat("Radius", &r);
-	if (ret)
-		r = std::min(std::max(r, .5f), maxR);
+	return ImGui::SliderFloat("Radius", &r, .5f, maxR);
+}
+
+double cross(const vec2d& a, const vec2d& b)
+{
+	return a.x * b.y - a.y * b.x;
+}
+
+bool IsInsideConvexShape(const vec2d& p, const std::vector<vec2d>& v)
+{
+	const auto nEdges = v.size();
+	for (size_t i = 0; i != nEdges; i++)
+	{
+		const auto& prev = v[(i - 1 + nEdges) % nEdges];
+		const auto& cur = v[i];
+		if (cross(cur - prev, p - prev) < 0)
+			return false;
+	}
+	return true;
+}
+
+std::vector<vec2d> CalculateCentroids(const std::vector<Cell>& cells)
+{
+	const auto n = cells.size();
+	std::vector<vec2d> ret(n);
+	for (size_t i = 0; i != n; i++)
+		ret[i] = CalculateCentroid(cells[i]);
 	return ret;
+}
+
+// shoelace formula
+double TwiceAreaPolygonSigned(const Cell& cell)
+{
+	double ret = 0;
+	const auto n = cell.size();
+	for (size_t i = 0; i != n; i++)
+	{
+		const auto& cur = cell[i];
+		const auto& nxt = cell[(i + 1) % n];
+		ret += cross(cur, nxt);
+	}
+	return ret;
+}
+
+double AreaTrig(const vec2d& p1, const vec2d& p2, const vec2d& p3)
+{
+	return .5 * TwiceAreaPolygonSigned({ p1, p2, p3 });
+}
+
+vec2d CalculateCentroid(const Cell& cell)
+{
+	double sx = 0, sy = 0;
+	const auto n = cell.size();
+	for (size_t i = 0; i != n; i++)
+	{
+		const auto& cur = cell[i];
+		const auto& nxt = cell[(i + 1) % n];
+		const auto c = cross(cur, nxt);
+		sx += (cur.x + nxt.x) * c;
+		sy += (cur.y + nxt.y) * c;
+	}
+	auto invM = 1. / (3 * TwiceAreaPolygonSigned(cell));
+	return { sx * invM, sy * invM };
+}
+bool ColorPicker3U32(const char* label, sf::Color& c, ImGuiColorEditFlags flags)
+{
+	float col[3];
+	col[0] = c.r / 255.f;
+	col[1] = c.g / 255.f;
+	col[2] = c.b / 255.f;
+
+	bool result = ImGui::ColorPicker3(label, col, flags);
+
+	c.r = (sf::Uint8)(col[0] * 255.f);
+	c.g = (sf::Uint8)(col[1] * 255.f);
+	c.b = (sf::Uint8)(col[2] * 255.f);
+
+	return result;
 }

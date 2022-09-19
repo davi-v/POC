@@ -4,29 +4,12 @@
 #include "DrawUtil.hpp"
 #include "NavigatorRVO2.hpp"
 #include "NavigatorCamposPotenciais.hpp"
+#include "NavigatorVoronoi.hpp"
 #include "Hopcroft.hpp"
 #include "Utilities.hpp"
 #include "FileExplorer.hpp"
 #include "Hungarian.hpp"
 #include "Application.hpp"
-#include "Voronoi.hpp"
-
-bool ColorPicker3U32(const char* label, sf::Color& c, ImGuiColorEditFlags flags = 0)
-{
-
-	float col[3];
-	col[0] = c.r / 255.f;
-	col[1] = c.g / 255.f;
-	col[2] = c.b / 255.f;
-
-	bool result = ImGui::ColorPicker3(label, col, flags);
-
-	c.r = col[0] * 255.f;
-	c.g = col[1] * 255.f;
-	c.b = col[2] * 255.f;
-
-	return result;
-}
 
 const sf::Color Simulator2D::DEFAULT_GOAL_COLOR = sf::Color::Green;
 
@@ -118,14 +101,7 @@ void Simulator2D::addEdge(Agent2D& agent, const Goal& goal)
 	agent.updateGoal(goal);
 }
 
-void Simulator2D::clearGoals()
-{
-	Clear(goals);
-}
-
 Simulator2D::Simulator2D(Application& app, float r) :
-	voronoiLineColor(sf::Color::White),
-	drawVoronoi(false),
 	app(app),
 	editModeType(EditModeType::Free),
 	r(r),
@@ -140,8 +116,7 @@ Simulator2D::Simulator2D(Application& app, float r) :
 	currentMaxEdge(0),
 	currentTotalSumOfEachEdgeDistance(0),
 	currentTotalSumOfEachEdgeDistanceSquared(0),
-	variance(0),
-	navigatorOpened(false)
+	variance(0)
 {
 	font.loadFromFile("segoeui.ttf");
 
@@ -160,7 +135,7 @@ void Simulator2D::addAgent(const vec2d& c)
 
 void Simulator2D::addAgent(float x, float y)
 {
-	addAgent({ static_cast<double>(x), static_cast<double>(y) });
+	addAgent(vec2d{ static_cast<double>(x), static_cast<double>(y) });
 }
 
 void Simulator2D::addGoal(const vec2d& c)
@@ -168,216 +143,212 @@ void Simulator2D::addGoal(const vec2d& c)
 	goals.emplace_back(std::make_unique<Goal>(c, r));
 }
 
-void Simulator2D::draw(bool justInfo)
+void Simulator2D::addAgent(const sf::Vector2f& c)
 {
-	if (navigatorOpened)
+	addAgent(c.x, c.y);
+}
+
+bool Simulator2D::drawUI()
+{
+	bool opened = true;
+	ImGui::Begin("Navigator", &opened);
+
+	ImGui::Text("Frame (ms): %.3f (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
 	{
-		ImGui::Begin("Settings", &navigatorOpened);
-		
-			ImGui::Text("Frame (ms): %.3f (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
-			{
-				std::string str;
-				str += "Agents: " + std::to_string(agents.size());
-				str += "\nGoals: " + std::to_string(goals.size());
-				ImGui::Text(str.c_str());
-			}
-
-			if (ImGui::Checkbox("Outline Borders", &usingOutline))
-			{
-				if (usingOutline)
-				{
-					updateOutlineThickness();
-					updateOutlineColor();
-				}
-				else
-					circle.setOutlineThickness(0);
-			}
-
-			if (usingOutline)
-			{
-				if (ImGui::ColorPicker3("Outline Color", outlineColor, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha))
-					updateOutlineColor();
-				if (ImGui::SliderFloat("Outline Thickness Ratio", &percentageOutline, 0.f, 1.f))
-					updateOutlineThickness();
-			}
-
-			if (editModeType != EditModeType::Navigation) // navigation receives its own copy and is responsible for its own rendering
-			{
-				drawAgents(true);
-				drawGoals();
-			}
-
-			if (!justInfo)
-			{
-				static constexpr const char* MODE_LABELS[] = {
-					"Free Edit",
-					"Metric Based",
-					"Navigator"
-				};
-				if (ImGui::Combo("Mode", reinterpret_cast<int*>(&editModeType), MODE_LABELS, IM_ARRAYSIZE(MODE_LABELS)))
-				{
-					switch (editModeType)
-					{
-					case EditModeType::Free:
-					{
-					}
-					break;
-					case EditModeType::Metric:
-					{
-						updateGraphEdges();
-						if (leftClickAction == LeftClickAction::AddEdge)
-							leftClickAction = LeftClickAction::Select;
-					}
-					break;
-					case EditModeType::Navigation:
-					{
-						createSelectedNavigator();
-					}
-					break;
-					}
-				}
-
-				auto drawEditMenu = [&](int nTypes)
-				{
-					static constexpr const char* LEFT_CLICK_ACTION[] = {
-					"Drag / Delete",
-					"Place Agent",
-					"Place Goal",
-					"Add Edge"
-					};
-					if (ImGui::Combo("Left Click Action", reinterpret_cast<int*>(&leftClickAction), LEFT_CLICK_ACTION, nTypes))
-					{
-						switch (leftClickAction)
-						{
-						case LeftClickAction::Select:
-						{
-							leftClickInterface = std::make_unique<SelectAction>(*this);
-						}
-						break;
-						case LeftClickAction::PlaceAgent:
-						{
-							leftClickInterface = std::make_unique<AddAgentAction>(*this);
-						}
-						break;
-						case LeftClickAction::PlaceGoal:
-						{
-							leftClickInterface = std::make_unique<AddGoalAction>(*this);
-						}
-						break;
-						case LeftClickAction::AddEdge:
-						{
-							leftClickInterface = std::make_unique<AddEdgeAction>(*this);
-						}
-						break;
-						}
-					}
-
-					ImGui::Checkbox("Voronoi", &drawVoronoi);
-
-					ColorPicker3U32("Voronoi Lines Color", voronoiLineColor, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha);
-
-					if (!agents.empty() || !goals.empty())
-						if (ImGui::Button("Clear"))
-							Clear(agents, goals);
-				};
-
-				auto showFileActions = [&]
-				{
-					if (canSaveFile() && ImGui::Button("Save File"))
-						saveFile();
-					if (ImGui::Button("Open File"))
-						tryOpenFile();
-				};
-
-				if (editModeType != EditModeType::Navigation)
-					navigator.reset();
-
-				switch (editModeType)
-				{
-				case EditModeType::Free:
-				{
-					int amount;
-					if (hasAtLeast1Edge())
-						amount = 4; // also give option to add edge
-					else
-						amount = 3;
-					drawEditMenu(amount);
-
-					showFileActions();
-				}
-				break;
-				case EditModeType::Metric:
-				{
-					if (hasAtLeast1Edge() && ImGui::CollapsingHeader("Metrics"))
-					{
-						static constexpr const char* METRIC_MESSAGES[] = {
-							"minimize biggest edge",
-							"minimize total sum of edges",
-							"minimize biggest edge then minimize total sum of edges"
-						};
-						if (ImGui::Combo("metric", reinterpret_cast<int*>(&metric), METRIC_MESSAGES, IM_ARRAYSIZE(METRIC_MESSAGES)))
-							updateGraphEdges();
-
-						// na métrica de apenas minimizar a maior aresta, não faz diferença se a distância considerada foi quadrática ou não
-						if (metric != Metric::MinimizeBiggestEdge)
-							if (ImGui::Checkbox("distances squared", &usingDistancesSquared))
-							{
-								updateDistanceSquaredVars();
-								updateGraphEdges(); // já sabemos que o grafo tem pelo menos 1 aresta
-							}
-
-						std::string str;
-						str += "max edge: " + std::to_string(currentMaxEdge);
-						str += "\nsum of edges: " + std::to_string(currentTotalSumOfEachEdgeDistance);
-						str += "\nsum of each edge squared: " + std::to_string(currentTotalSumOfEachEdgeDistanceSquared);
-						str += "\nvariance: " + std::to_string(variance);
-						ImGui::Text(str.c_str());
-					}
-					showFileActions();
-				}
-				break;
-				case EditModeType::Navigation:
-				{
-					static constexpr const char* SIMULATION_LOGIC_LABELS[] = {
-					"rvo2",
-					"Campos Potenciais"
-					};
-					if (ImGui::Combo("Navigator", reinterpret_cast<int*>(&curNavigator), SIMULATION_LOGIC_LABELS, IM_ARRAYSIZE(SIMULATION_LOGIC_LABELS)))
-						createSelectedNavigator();
-
-					if (ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 1, 256, "%d", ImGuiSliderFlags_AlwaysClamp))
-						navigator->updateTimeStep(1.f / tickRate);
-					ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
-
-					if (navigator->running)
-					{
-						if (ImGui::Button("Pause"))
-							navigator->running = false;
-					}
-					else
-					{
-						if (ImGui::Button("Play"))
-							navigator->startNavigating();
-					}
-
-					ImGui::Checkbox("Draw Destination Lines", &navigator->drawDestinationLines);
-				}
-				break;
-				}
-
-				if (navigator)
-					navigator->drawUI();
-
-				leftClickInterface->draw();
-			}
-	
-			if (!navigatorOpened)
-				clearAll();
-
-		ImGui::End(); // Settings
+		std::string str;
+		str += "Agents: " + std::to_string(agents.size());
+		str += "\nGoals: " + std::to_string(goals.size());
+		ImGui::Text(str.c_str());
 	}
 
+	if (ImGui::Checkbox("Outline Borders", &usingOutline))
+	{
+		if (usingOutline)
+		{
+			updateOutlineThickness();
+			updateOutlineColor();
+		}
+		else
+			circle.setOutlineThickness(0);
+	}
+
+	if (usingOutline)
+	{
+		if (ImGui::ColorPicker3("Outline Color", outlineColor, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoSidePreview | ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoAlpha))
+			updateOutlineColor();
+		if (ImGui::SliderFloat("Outline Thickness Ratio", &percentageOutline, 0.f, 1.f))
+			updateOutlineThickness();
+	}
+
+	if (editModeType != EditModeType::Navigation) // navigation receives its own copy and is responsible for its own rendering
+	{
+		drawAgents(true);
+		drawGoals();
+	}
+
+	static constexpr const char* MODE_LABELS[] = {
+			"Free Edit",
+			"Metric Based",
+			"Navigator"
+	};
+	if (ImGui::Combo("Mode", reinterpret_cast<int*>(&editModeType), MODE_LABELS, IM_ARRAYSIZE(MODE_LABELS)))
+	{
+		switch (editModeType)
+		{
+		case EditModeType::Free:
+		{
+		}
+		break;
+		case EditModeType::Metric:
+		{
+			updateGraphEdges();
+			if (leftClickAction == LeftClickAction::AddEdge)
+				leftClickAction = LeftClickAction::Select;
+		}
+		break;
+		case EditModeType::Navigation:
+		{
+			createSelectedNavigator();
+		}
+		break;
+		}
+	}
+
+	auto drawEditMenu = [&](int nTypes)
+	{
+		static constexpr const char* LEFT_CLICK_ACTION[] = {
+		"Drag / Delete",
+		"Place Agent",
+		"Place Goal",
+		"Add Edge"
+		};
+		if (ImGui::Combo("Left Click Action", reinterpret_cast<int*>(&leftClickAction), LEFT_CLICK_ACTION, nTypes))
+		{
+			switch (leftClickAction)
+			{
+			case LeftClickAction::Select:
+			{
+				leftClickInterface = std::make_unique<SelectAction>(*this);
+			}
+			break;
+			case LeftClickAction::PlaceAgent:
+			{
+				leftClickInterface = std::make_unique<AddAgentAction>(*this);
+			}
+			break;
+			case LeftClickAction::PlaceGoal:
+			{
+				leftClickInterface = std::make_unique<AddGoalAction>(*this);
+			}
+			break;
+			case LeftClickAction::AddEdge:
+			{
+				leftClickInterface = std::make_unique<AddEdgeAction>(*this);
+			}
+			break;
+			}
+		}
+
+		if (!agents.empty() || !goals.empty())
+			if (ImGui::Button("Clear"))
+				Clear(agents, goals);
+	};
+
+	auto showFileActions = [&]
+	{
+		if (canSaveFile() && ImGui::Button("Save File"))
+			saveFile();
+		if (ImGui::Button("Open File"))
+			tryOpenFile();
+	};
+
+	if (editModeType != EditModeType::Navigation)
+		navigator.reset();
+
+	switch (editModeType)
+	{
+	case EditModeType::Free:
+	{
+		int amount;
+		if (hasAtLeast1Edge())
+			amount = 4; // also give option to add edge
+		else
+			amount = 3;
+		drawEditMenu(amount);
+
+		showFileActions();
+	}
+	break;
+	case EditModeType::Metric:
+	{
+		if (hasAtLeast1Edge() && ImGui::CollapsingHeader("Metrics"))
+		{
+			static constexpr const char* METRIC_MESSAGES[] = {
+				"minimize biggest edge",
+				"minimize total sum of edges",
+				"minimize biggest edge then minimize total sum of edges"
+			};
+			if (ImGui::Combo("metric", reinterpret_cast<int*>(&metric), METRIC_MESSAGES, IM_ARRAYSIZE(METRIC_MESSAGES)))
+				updateGraphEdges();
+
+			// na métrica de apenas minimizar a maior aresta, não faz diferença se a distância considerada foi quadrática ou não
+			if (metric != Metric::MinimizeBiggestEdge)
+				if (ImGui::Checkbox("distances squared", &usingDistancesSquared))
+				{
+					updateDistanceSquaredVars();
+					updateGraphEdges(); // já sabemos que o grafo tem pelo menos 1 aresta
+				}
+
+			std::string str;
+			str += "max edge: " + std::to_string(currentMaxEdge);
+			str += "\nsum of edges: " + std::to_string(currentTotalSumOfEachEdgeDistance);
+			str += "\nsum of each edge squared: " + std::to_string(currentTotalSumOfEachEdgeDistanceSquared);
+			str += "\nvariance: " + std::to_string(variance);
+			ImGui::Text(str.c_str());
+		}
+		showFileActions();
+	}
+	break;
+	case EditModeType::Navigation:
+	{
+		static constexpr const char* SIMULATION_LOGIC_LABELS[] = {
+		"rvo2",
+		"Campos Potenciais"
+		};
+		if (ImGui::Combo("Navigator", reinterpret_cast<int*>(&curNavigator), SIMULATION_LOGIC_LABELS, IM_ARRAYSIZE(SIMULATION_LOGIC_LABELS)))
+			createSelectedNavigator();
+
+		if (ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 1, 256, "%d", ImGuiSliderFlags_AlwaysClamp))
+			navigator->updateTimeStep(1.f / tickRate);
+		ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
+
+		if (navigator->running)
+		{
+			if (ImGui::Button("Pause"))
+				navigator->running = false;
+		}
+		else
+		{
+			if (ImGui::Button("Play"))
+				navigator->startNavigating();
+		}
+
+		ImGui::Checkbox("Draw Destination Lines", &navigator->drawDestinationLines);
+	}
+	break;
+	}
+
+	if (navigator)
+		navigator->drawUI();
+
+	leftClickInterface->draw();
+	ImGui::End();
+	return opened;
+}
+
+void Simulator2D::draw()
+{
 	if (navigator)
 	{
 		navigator->loopUpdate();
@@ -386,40 +357,16 @@ void Simulator2D::draw(bool justInfo)
 	else
 	{
 		auto& w = app.window;
-		for (auto& agent : agents)
+		for (const auto& agent : agents)
 		{
-			vec2f circleCenter(
+			sf::Vector2f circleCenter{
 				static_cast<float>(agent->coord.x),
-				static_cast<float>(agent->coord.y));
+				static_cast<float>(agent->coord.y)
+			};
 			circle.setPosition(circleCenter);
-			circle.setFillColor(app.getColor(circleCenter));
+			circle.setFillColor(app.viewerBase->getColor(circleCenter));
 			PrepareCircleRadius(circle, r);
 			w.draw(circle);
-		}
-
-		if (drawVoronoi)
-		{
-			std::vector<vec2d> coords;
-			for (auto& agent : agents)
-				coords.emplace_back(agent->coord);
-			auto& imgViewer = app.viewerBase->accessImgViewer();
-			auto& mapBorderCoord = imgViewer.mapBorderCoord;
-			auto& mapBorderSize = imgViewer.mapBorderSize;
-
-			sf::Rect<double> rect{
-				mapBorderCoord.x, mapBorderCoord.y,
-				mapBorderSize.x, mapBorderSize.y
-			};
-			Voronoi voronoi{ coords, rect };
-			for (const auto& [p0, p1] : voronoi.getEdges())
-			{
-				sf::Vertex v[2]
-				{
-					{ { (float)p0.x, (float)p0.y}, voronoiLineColor },
-					{ { (float)p1.x, (float)p1.y}, voronoiLineColor },
-				};
-				w.draw(v, 2, sf::Lines);
-			}
 		}
 	}
 
@@ -535,17 +482,19 @@ bool Simulator2D::hasAtLeast1Edge()
 	return agents.size() >= nGoals && nGoals;
 }
 
+void Simulator2D::drawAgent(const Agent2D& agent)
+{
+	circle.setFillColor(agent.color);
+	PrepareCircleRadius(circle, static_cast<float>(agent.radius));
+	circle.setPosition(agent.coord);
+	app.window.draw(circle);
+}
+
 void Simulator2D::drawAgents(bool drawEdgeToGoal)
 {
 	for (const auto& agent : agents)
 	{
-		circle.setFillColor(agent->color);
-		PrepareCircleRadius(circle, static_cast<float>(agent->radius));
-
-		const auto& coord = agent->coord;
-		circle.setPosition(coord);
-		app.window.draw(circle);
-
+		drawAgent(*agent);
 		if (drawEdgeToGoal)
 			if (agent->goalPtr)
 			{
@@ -581,9 +530,6 @@ void Simulator2D::createSelectedNavigator()
 	}
 	break;
 	}
-
-	for (const auto& agent : agents)
-		navigator->addAgent(*agent);
 }
 
 void Simulator2D::drawGoals()
@@ -644,11 +590,6 @@ void Simulator2D::updateGraphEdges()
 	}
 	break;
 	}
-}
-
-sf::Color Simulator2D::getColor(float x, float y)
-{
-	return app.getColor({ x, y });
 }
 
 std::vector<vec2d> Simulator2D::getAgentsCoordinatesFromNavigator()
@@ -1170,3 +1111,13 @@ void Simulator2D::quitNavigator()
 	for (size_t i = 0; i != n; i++)
 		agents[i]->coord = agentsCoords[i];
 }
+
+ImgViewer& Simulator2D::accessImgViewer()
+{
+	return app.viewerBase->accessImgViewer();
+}
+//sf::Rect<double> Simulator2D::getImgBB()
+//{
+//	auto& img = accessImgViewer();
+//	return img.getBB();
+//}

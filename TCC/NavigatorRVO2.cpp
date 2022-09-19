@@ -6,14 +6,16 @@
 #include "Application.hpp"
 #include "Utilities.hpp"
 
-NavigatorRVO2::NavigatorRVO2(Simulator2D& simulator2D, float neighbourDist) :
-	simulator2D(simulator2D),
+NavigatorRVO2::NavigatorRVO2(Simulator2D& sim, float neighbourDist) :
+	sim(sim),
 	neighbourDist(neighbourDist),
 	drawGoals(false),
 	drawTrajectories(false)
 {
-	MakeUniquePtr(sim);
-	sim->setTimeStep(timeStep);
+	MakeUniquePtr(rvoSim);
+	for (const auto& agent : sim.agents)
+		addAgent(*agent);
+	rvoSim->setTimeStep(timeStep);
 }
 
 void NavigatorRVO2::drawUI()
@@ -68,11 +70,11 @@ void NavigatorRVO2::dumpCSV()
 
 std::vector<vec2d> NavigatorRVO2::getAgentPositions()
 {
-	auto n = sim->getNumAgents();
+	auto n = rvoSim->getNumAgents();
 	std::vector<vec2d> r(n);
 	for (size_t i = 0; i != n; i++)
 	{
-		const auto& c = sim->getAgentPosition(i);
+		const auto& c = rvoSim->getAgentPosition(i);
 		auto
 			x = static_cast<double>(c.x()),
 			y = static_cast<double>(c.y());
@@ -83,7 +85,7 @@ std::vector<vec2d> NavigatorRVO2::getAgentPositions()
 
 void NavigatorRVO2::addAgentImpl(const Agent2D& agent)
 {
-	sim->addAgent(
+	rvoSim->addAgent(
 		RVO::Vector2(static_cast<float>(agent.coord.x), static_cast<float>(agent.coord.y)),
 		neighbourDist,
 		maxNeighbours,
@@ -97,8 +99,8 @@ void NavigatorRVO2::addAgentImpl(const Agent2D& agent)
 
 void NavigatorRVO2::restart()
 {
-	MakeUniquePtr(sim);
-	sim->setTimeStep(timeStep);
+	MakeUniquePtr(rvoSim);
+	rvoSim->setTimeStep(timeStep);
 
 	coordsThroughTime.clear();
 	for (auto& agentPtr : orgAgents)
@@ -116,13 +118,13 @@ void NavigatorRVO2::tick()
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-	for (size_t i = 0, end = sim->getNumAgents(); i != end; i++)
+	for (size_t i = 0, end = rvoSim->getNumAgents(); i != end; i++)
 	{
 		const auto& goalPtr = orgAgents[i]->goalPtr;
 		RVO::Vector2 prefVel;
 		if (goalPtr)
 		{
-			auto vecToGoal = static_cast<RVO::Vector2>(goalPtr->coord) - sim->getAgentPosition(i);
+			auto vecToGoal = static_cast<RVO::Vector2>(goalPtr->coord) - rvoSim->getAgentPosition(i);
 			auto lenSquared = vecToGoal * vecToGoal; // "*" is RVO's dot product
 
 			static constexpr float EPS_TOO_CLOSE = 1e-3f;
@@ -132,11 +134,11 @@ void NavigatorRVO2::tick()
 			{
 				auto len = sqrt(lenSquared);
 
-				const auto& curVel = sim->getAgentVelocity(i);
+				const auto& curVel = rvoSim->getAgentVelocity(i);
 				auto speed = RVO::abs(curVel);
 
 				auto nextMax = std::min(speed + accel * timeStep, maxSpeed);
-				sim->setAgentMaxSpeed(i, nextMax);
+				rvoSim->setAgentMaxSpeed(i, nextMax);
 
 				auto D = square(speed) / decel * .5f; // distância que esse agente ainda vai percorrer em linha reta se começar a frear agora
 				
@@ -149,23 +151,23 @@ void NavigatorRVO2::tick()
 			}
 		}
 
-		sim->setAgentPrefVelocity(i, prefVel);
+		rvoSim->setAgentPrefVelocity(i, prefVel);
 	}
 
-	sim->doStep();
+	rvoSim->doStep();
 }
 
 void NavigatorRVO2::draw()
 {
-	auto& circle = simulator2D.circle;
-	auto& window = simulator2D.app.window;
+	auto& circle = sim.circle;
+	auto& window = sim.app.window;
 
-	auto nAgents = sim->getNumAgents();
+	auto nAgents = rvoSim->getNumAgents();
 
 	if (drawGoals)
 	{
 		circle.setFillColor(sf::Color::Green);
-		PrepareCircleRadius(circle, simulator2D.r);
+		PrepareCircleRadius(circle, sim.r);
 		for (size_t i = 0; i != nAgents; i++)
 		{
 			const auto& goalPtr = orgAgents[i]->goalPtr;
@@ -181,12 +183,12 @@ void NavigatorRVO2::draw()
 	// agents
 	for (size_t i = 0; i != nAgents; i++)
 	{
-		PrepareCircleRadius(circle, sim->getAgentRadius(i) / RADIUS_MULTIPLIER_FACTOR);
-		const auto& coord = sim->getAgentPosition(i);
+		PrepareCircleRadius(circle, rvoSim->getAgentRadius(i) / RADIUS_MULTIPLIER_FACTOR);
+		const auto& coord = rvoSim->getAgentPosition(i);
 		auto x = coord.x();
 		auto y = coord.y();
 		coordsThroughTime[i].emplace_back(x, y);
-		circle.setFillColor(simulator2D.getColor(x, y));
+		//circle.setFillColor(sim.getColor(x, y));
 		circle.setPosition({ x, y });
 		window.draw(circle);
 	}
@@ -202,7 +204,7 @@ void NavigatorRVO2::draw()
 			{
 				sf::Vertex vertices[2]
 				{
-					sf::Vertex{ ToSFML(sim->getAgentPosition(i)), sf::Color::Magenta},
+					sf::Vertex{ ToSFML(rvoSim->getAgentPosition(i)), sf::Color::Magenta},
 					sf::Vertex{ goal.coord, sf::Color::Magenta },
 				};
 				window.draw(vertices, 2, sf::Lines);
@@ -233,5 +235,5 @@ void NavigatorRVO2::draw()
 void NavigatorRVO2::updateTimeStep(float t)
 {
 	timeStep = t;
-	sim->setTimeStep(timeStep);
+	rvoSim->setTimeStep(timeStep);
 }

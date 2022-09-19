@@ -3,11 +3,13 @@
 #include "Goal.hpp"
 #include "NavigatorInterface.hpp"
 #include "SelectableEdge.hpp"
+#include "Voronoi.hpp"
+
+class ImgViewer;
 
 static constexpr float DEFAULT_RADIUS = 3.f;
 
 #define SIMULATOR_EXT "tcc"
-
 static constexpr wchar_t const* lFilterPatterns[] = { L"*." SIMULATOR_EXT};
 
 double distanceAgent(const Agent2D& agent, const Goal& goal);
@@ -23,8 +25,6 @@ class Application;
 
 class Simulator2D
 {
-	sf::Color voronoiLineColor;
-	bool drawVoronoi;
 
 	void updateOutlineColor();
 	void updateOutlineThickness();
@@ -35,7 +35,7 @@ class Simulator2D
 	bool canSaveFile();
 	void saveFile();
 	void tryOpenFile();
-
+	
 	void drawAgents(bool drawEdgeToGoal);
 	void drawGoals();
 
@@ -64,6 +64,10 @@ class Simulator2D
 		CamposPotenciais
 	} curNavigator;
 public:
+	void drawAgent(const Agent2D& agent);
+
+	
+	
 	std::unique_ptr<NavigatorInterface> navigator;
 private:
 	typedef bool DistanceFunctionsUnderlyingType; // bool bc only 2
@@ -116,7 +120,6 @@ private:
 
 	vec2d getCoordDouble(int x, int y);
 	void addEdge(Agent2D& agent, const Goal& goal);
-
 
 	struct LeftClickInterface
 	{
@@ -196,15 +199,17 @@ public:
 	Simulator2D(Application& app, float r);
 	void addAgent(const vec2d& c);
 	void addAgent(float x, float y);
+	void addAgent(const sf::Vector2f& c);
 	void addGoal(const vec2d& coord);
-	void clearGoals();
+	
 
-	void draw(bool justInfo);
+	bool drawUI();
+	void draw();
 
 	bool pollEvent(const sf::Event& event);
 	void updateGraphEdges();
 
-	sf::Color getColor(float x, float y);
+	
 
 	enum class EditModeType
 	{
@@ -223,5 +228,8 @@ public:
 	void quitNavigator();
 	void clearAll();
 
-	bool navigatorOpened;
+	
+
+	ImgViewer& accessImgViewer();
+	//sf::Rect<double> getImgBB(); // bounding box
 };

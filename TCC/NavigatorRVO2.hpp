@@ -31,8 +31,8 @@ class NavigatorRVO2 : public NavigatorInterface
 	float accel = maxSpeed / .4f;
 	float decel = maxSpeed / .4f;
 
-	std::unique_ptr<RVO::RVOSimulator> sim;
-	Simulator2D& simulator2D;
+	std::unique_ptr<RVO::RVOSimulator> rvoSim;
+	Simulator2D& sim;
 
 	void restart();
 	void addAgent(const Agent2D& agent) override;

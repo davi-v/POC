@@ -56,6 +56,30 @@
     <ClCompile Include="Voronoi.cpp">
       <Filter>Voronoi</Filter>
     </ClCompile>
+    <ClCompile Include="NavigatorVoronoi.cpp">
+      <Filter>Simulator2D\Navigators\NavigatorVoronoi</Filter>
+    </ClCompile>
+    <ClCompile Include="VoronoiInfo.cpp">
+      <Filter>VoronoiInfo</Filter>
+    </ClCompile>
+    <ClCompile Include="ImgViewer.cpp">
+      <Filter>ViewerBase\ImgViewer</Filter>
+    </ClCompile>
+    <ClCompile Include="PreviewVoronoi.cpp">
+      <Filter>Previewer\PreviewVoronoi</Filter>
+    </ClCompile>
+    <ClCompile Include="PreviewHex.cpp">
+      <Filter>Previewer\PreviewHex</Filter>
+    </ClCompile>
+    <ClCompile Include="Previewer.cpp">
+      <Filter>Previewer</Filter>
+    </ClCompile>
+    <ClCompile Include="ViewerBase.cpp">
+      <Filter>ViewerBase</Filter>
+    </ClCompile>
+    <ClCompile Include="Sequencer.cpp">
+      <Filter>Sequencer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Hopcroft">
@@ -120,6 +144,30 @@
     </Filter>
     <Filter Include="Voronoi">
       <UniqueIdentifier>{76f0c10b-54a0-4aea-9d7d-2149e7112c4d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Simulator2D\Navigators\NavigatorVoronoi">
+      <UniqueIdentifier>{3863d45e-e7f4-4a1d-813e-5ab35b179e38}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VoronoiInfo">
+      <UniqueIdentifier>{58c27da4-2884-4dba-b629-66f89ee82c90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ViewerBase">
+      <UniqueIdentifier>{40683c34-45b7-4949-a8da-aca55dc1b758}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ViewerBase\ImgViewer">
+      <UniqueIdentifier>{59156218-241f-4aae-96b9-a2c6e98d3460}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Previewer">
+      <UniqueIdentifier>{ef0c8ac3-397e-4a95-89ba-c986020c69ee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Previewer\PreviewHex">
+      <UniqueIdentifier>{0f497619-1b3d-410d-b647-0ca6087a8919}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Previewer\PreviewVoronoi">
+      <UniqueIdentifier>{f0eae648-f15d-4b2d-8bc5-705a3660264d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Sequencer">
+      <UniqueIdentifier>{925de4a4-b332-4a45-80ee-3abd18b18621}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -190,6 +238,30 @@
     </ClInclude>
     <ClInclude Include="Voronoi.hpp">
       <Filter>Voronoi</Filter>
+    </ClInclude>
+    <ClInclude Include="NavigatorVoronoi.hpp">
+      <Filter>Simulator2D\Navigators\NavigatorVoronoi</Filter>
+    </ClInclude>
+    <ClInclude Include="VoronoiInfo.hpp">
+      <Filter>VoronoiInfo</Filter>
+    </ClInclude>
+    <ClInclude Include="ImgViewer.hpp">
+      <Filter>ViewerBase\ImgViewer</Filter>
+    </ClInclude>
+    <ClInclude Include="ViewerBase.hpp">
+      <Filter>ViewerBase</Filter>
+    </ClInclude>
+    <ClInclude Include="Previewer.hpp">
+      <Filter>Previewer</Filter>
+    </ClInclude>
+    <ClInclude Include="PreviewHex.hpp">
+      <Filter>Previewer\PreviewHex</Filter>
+    </ClInclude>
+    <ClInclude Include="PreviewVoronoi.hpp">
+      <Filter>Previewer\PreviewVoronoi</Filter>
+    </ClInclude>
+    <ClInclude Include="Sequencer.hpp">
+      <Filter>Sequencer</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

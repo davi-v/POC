@@ -42,6 +42,16 @@
 #include "TemplateUtils.hpp"
 #include "DefineUtils.hpp"
 
+#define BOOST_POLYGON_NO_DEPS
+#include <boost/polygon/voronoi.hpp>
+using boost::polygon::voronoi_builder;
+using namespace boost::polygon;
+using boost::polygon::voronoi_diagram;
+using boost::polygon::x;
+using boost::polygon::y;
+using boost::polygon::low;
+using boost::polygon::high;
+
 #include <opencv2/opencv.hpp>
 #ifdef _DEBUG
 #define OPENCV_DEBUG_EXT "d"

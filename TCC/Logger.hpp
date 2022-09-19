@@ -6,7 +6,7 @@ void LOG_ELEM(T&& elem)
 {
 	std::cout << elem;
 }
-inline void LOG_ELEM(wchar_t* s)
+inline void LOG_ELEM(const wchar_t* s)
 {
 	std::wcout << s;
 }
