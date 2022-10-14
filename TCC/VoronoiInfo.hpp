@@ -4,9 +4,6 @@
 
 struct VoronoiInfo
 {
-	//std::vector<vec2d[4]> fixme;
-	//std::vector<std::array<vec2d, 4>> fixme;
-
 	void mergePrevious(vec2d& a, double& b, const vec2d& newA, const double& newB);
 	size_t findCell(double x, double y);
 	sf::Rect<double> border;

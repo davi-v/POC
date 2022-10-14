@@ -48,9 +48,6 @@ void VoronoiInfo::update(const std::vector<vec2d>& robotCoords)
 }
 std::vector<vec2d> VoronoiInfo::getTargets()
 {
-	//fixme.clear();
-
-
 	const auto n = voronoiCells.size();
 	std::vector<vec2d> ret(n);
 	for (size_t i = 0; i != n; i++)
@@ -120,10 +117,6 @@ std::pair<vec2d, double> VoronoiInfo::getCentroidAndMassBelowSegment(vec2d a, ve
 					mergePrevious(centroid, tsm, trigCentroid, trigMass);
 				}
 			};
-
-			//auto& t = fixme.emplace_back();
-			//t = {a, bot1, bot2, nxt};
-
 			const auto strength = getPixelW(cx, cy);
 
 			handle(a, bot2, bot1, strength);

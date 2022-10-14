@@ -42,6 +42,8 @@
 #include "TemplateUtils.hpp"
 #include "DefineUtils.hpp"
 
+#define BOOST_DISABLE_CURRENT_LOCATION
+
 #define BOOST_POLYGON_NO_DEPS
 #include <boost/polygon/voronoi.hpp>
 using boost::polygon::voronoi_builder;

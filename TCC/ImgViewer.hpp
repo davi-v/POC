@@ -23,6 +23,7 @@ public:
 
 	void startHexagonPreview();
 	void startVoronoiPreview();
+	void startPolygonizePreview();
 	sf::Rect<double> getBB() const;
 
 	//enum class AllocationType
