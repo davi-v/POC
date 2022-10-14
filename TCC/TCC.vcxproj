@@ -205,6 +205,7 @@
     </ClCompile>
     <ClCompile Include="Previewer.cpp" />
     <ClCompile Include="PreviewHex.cpp" />
+    <ClCompile Include="PreviewPolygonize.cpp" />
     <ClCompile Include="PreviewVoronoi.cpp" />
     <ClCompile Include="Random.cpp" />
     <ClCompile Include="SelectableEdge.cpp" />
@@ -229,6 +230,7 @@
     <ClInclude Include="OpenCVSFML.hpp" />
     <ClInclude Include="Previewer.hpp" />
     <ClInclude Include="PreviewHex.hpp" />
+    <ClInclude Include="PreviewPolygonize.hpp" />
     <ClInclude Include="PreviewVoronoi.hpp" />
     <ClInclude Include="SelectableEdge.hpp" />
     <ClInclude Include="Sequencer.hpp" />

@@ -14,7 +14,6 @@ public:
 
 	bool drawUI();
 	virtual void draw() = 0;
-
 	virtual void pollEvent(const sf::Event& e) = 0;
 	virtual void onImgChangeImpl() = 0;
 	virtual const char* getTitle() = 0;

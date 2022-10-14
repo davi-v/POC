@@ -8,7 +8,7 @@ ViewerBase::ViewerBase(Application& app) :
 	circleColorSFML{ sf::Color::Red },
 	circleColorF3{ 1, 0, 0 },
 	highlightPixelHovered{ false },
-	drawBorder{ true },
+	drawBorder{ false },
 	radius{ 10.f }
 {
 }
@@ -110,6 +110,8 @@ void ViewerBase::drawUI()
 				img.startHexagonPreview();
 			if (ImGui::MenuItem("Voronoi"))
 				img.startVoronoiPreview();
+			if (ImGui::MenuItem("Polygonize"))
+				img.startPolygonizePreview();
 			ImGui::EndMenu();
 		}
 	}

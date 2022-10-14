@@ -21,7 +21,7 @@
       <Filter>Hopcroft</Filter>
     </ClCompile>
     <ClCompile Include="Agent.cpp">
-      <Filter>Simulator2D\Agent2D</Filter>
+      <Filter>Previewer\Agent2D</Filter>
     </ClCompile>
     <ClCompile Include="NavigatorRVO2.cpp">
       <Filter>Simulator2D\Navigators\rvo2</Filter>
@@ -80,6 +80,9 @@
     <ClCompile Include="Sequencer.cpp">
       <Filter>Sequencer</Filter>
     </ClCompile>
+    <ClCompile Include="PreviewPolygonize.cpp">
+      <Filter>Previewer\PreviewPolygonize</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Hopcroft">
@@ -124,9 +127,6 @@
     <Filter Include="Simulator2D\Goal">
       <UniqueIdentifier>{a113a22f-4637-423d-b9b3-c692e2fbea44}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Simulator2D\Agent2D">
-      <UniqueIdentifier>{2f2e9312-6d06-4fba-a3c4-5ed6673323e2}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Simulator2D\vec2">
       <UniqueIdentifier>{f9be909d-ae22-4f69-b89e-0cf25fbe49d4}</UniqueIdentifier>
     </Filter>
@@ -169,6 +169,12 @@
     <Filter Include="Sequencer">
       <UniqueIdentifier>{925de4a4-b332-4a45-80ee-3abd18b18621}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Previewer\PreviewPolygonize">
+      <UniqueIdentifier>{a1a9b757-dde5-4f9c-a41a-9787a9cce5e7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Previewer\Agent2D">
+      <UniqueIdentifier>{2f2e9312-6d06-4fba-a3c4-5ed6673323e2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.hpp">
@@ -198,7 +204,7 @@
       <Filter>Simulator2D\vec2</Filter>
     </ClInclude>
     <ClInclude Include="Agent.hpp">
-      <Filter>Simulator2D\Agent2D</Filter>
+      <Filter>Previewer\Agent2D</Filter>
     </ClInclude>
     <ClInclude Include="Goal.hpp">
       <Filter>Simulator2D\Goal</Filter>
@@ -262,6 +268,9 @@
     </ClInclude>
     <ClInclude Include="Sequencer.hpp">
       <Filter>Sequencer</Filter>
+    </ClInclude>
+    <ClInclude Include="PreviewPolygonize.hpp">
+      <Filter>Previewer\PreviewPolygonize</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

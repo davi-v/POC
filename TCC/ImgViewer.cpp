@@ -1,6 +1,7 @@
 #include "Pch.hpp"
 #include "ImgViewer.hpp"
 
+#include "PreviewPolygonize.hpp"
 #include "Application.hpp"
 #include "OpenCVSFML.hpp"
 #include "Utilities.hpp"
@@ -131,12 +132,15 @@ ImgViewer& ImgViewer::accessImgViewer()
 	return *this;
 }
 
+void ImgViewer::startHexagonPreview()
+{
+	previewer = std::make_unique<PreviewHex>(*this);
+}
 void ImgViewer::startVoronoiPreview()
 {
 	previewer = std::make_unique<PreviewVoronoi>(*this);
 }
-
-void ImgViewer::startHexagonPreview()
+void ImgViewer::startPolygonizePreview()
 {
-	previewer = std::make_unique<PreviewHex>(*this);
+	previewer = std::make_unique<PreviewPolygonize>(*this);
 }

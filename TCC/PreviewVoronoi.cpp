@@ -237,8 +237,9 @@ void PreviewVoronoi::drawUIImpl()
 	ImGui::Checkbox("Targets", &drawTargets);
 	ImGui::Checkbox("Highlight Hovered Robot", &highlightHoveredRobot);
 	ImGui::Checkbox("Highlight Hovered Cell", &highlightHoveredCell);
-	static constexpr float MIN_R = .5;
-	static constexpr float MAX_R = 32;
+	static constexpr float
+		MIN_R = .5,
+		MAX_R = 32;
 	if (ImGui::SliderFloat("Radius", &viewerBase.radius, MIN_R, MAX_R))
 		updatedCircleRadius();
 	if (ImGui::Button("Clear"))
