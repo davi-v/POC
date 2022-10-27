@@ -4,99 +4,53 @@
 #include "Application.hpp"
 #include "ImgViewer.hpp"
 
-#define CGAL_NO_GMP 1
-#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/Alpha_shape_2.h>
-#include <CGAL/Alpha_shape_vertex_base_2.h>
-#include <CGAL/Alpha_shape_face_base_2.h>
-#include <CGAL/Delaunay_triangulation_2.h>
-#include <CGAL/algorithm.h>
-
-#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/Constrained_Delaunay_triangulation_2.h>
-#include <CGAL/Triangulation_face_base_with_info_2.h>
-#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
-#include <CGAL/Constrained_Delaunay_triangulation_2.h>
-#include <CGAL/Constrained_triangulation_plus_2.h>
-#include <CGAL/Polygon_2.h>
-
-//typedef CGAL::Exact_predicates_exact_constructions_kernel       K;
-typedef CGAL::Exact_predicates_inexact_constructions_kernel       K;
-typedef K::Segment_2                                         Segment;
-
-struct FaceInfo2
-{
-	FaceInfo2() {}
-	int nesting_level;
-	bool in_domain() {
-		return nesting_level % 2 == 1;
-	}
-};
-typedef CGAL::Triangulation_vertex_base_2<K>                      Vb;
-typedef CGAL::Triangulation_face_base_with_info_2<FaceInfo2, K>    Fbb;
-typedef CGAL::Constrained_triangulation_face_base_2<K, Fbb>        Fb;
-typedef CGAL::Triangulation_data_structure_2<Vb, Fb>               TDS;
-typedef CGAL::Exact_predicates_tag                                Itag;
-typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, Itag>  CDT;
-typedef CDT::Point                                                Point;
-typedef CGAL::Polygon_2<K>                                        Polygon_2;
-typedef CDT::Face_handle                                          Face_handle;
-
-
-typedef CGAL::Constrained_triangulation_plus_2<CDT>                       CDTP;
-
 void
-mark_domains(CDT& ct,
+mark_domains(CDTP2& ct,
 	Face_handle start,
 	int index,
-	std::list<CDT::Edge>& border)
+	std::queue<CDT2::Edge>& border)
 {
-	if (start->info().nesting_level != -1) {
+	if (start->info().nesting_level != -1)
 		return;
-	}
-	std::list<Face_handle> queue;
-	queue.push_back(start);
-	while (!queue.empty()) {
+	std::queue<Face_handle> queue;
+	queue.emplace(start);
+	while (!queue.empty())
+	{
 		Face_handle fh = queue.front();
-		queue.pop_front();
-		if (fh->info().nesting_level == -1) {
+		queue.pop();
+		if (fh->info().nesting_level == -1)
+		{
 			fh->info().nesting_level = index;
-			for (int i = 0; i < 3; i++) {
-				CDT::Edge e(fh, i);
+			for (int i = 0; i != 3; i++)
+			{
+				CDT2::Edge e(fh, i);
 				Face_handle n = fh->neighbor(i);
-				if (n->info().nesting_level == -1) {
-					if (ct.is_constrained(e)) border.push_back(e);
-					else queue.push_back(n);
+				if (n->info().nesting_level == -1)
+				{
+					if (ct.is_constrained(e))
+						border.emplace(e);
+					else
+						queue.emplace(n);
 				}
 			}
 		}
 	}
 }
-void mark_domains(CDT& cdt)
+void mark_domains(CDTP2& cdt)
 {
-	for (CDT::Face_handle f : cdt.all_face_handles())
+	for (auto& f : cdt.all_face_handles())
 		f->info().nesting_level = -1;
-	std::list<CDT::Edge> border;
+	std::queue<CDT2::Edge> border;
 	mark_domains(cdt, cdt.infinite_face(), 0, border);
-	while (!border.empty()) {
-		CDT::Edge e = border.front();
-		border.pop_front();
-		Face_handle n = e.first->neighbor(e.second);
-		if (n->info().nesting_level == -1) {
+	while (!border.empty())
+	{
+		CDT2::Edge e = border.front();
+		border.pop();
+		auto n = e.first->neighbor(e.second);
+		if (n->info().nesting_level == -1)
 			mark_domains(cdt, n, e.first->info().nesting_level + 1, border);
-		}
 	}
 }
-
-typedef CGAL::Delaunay_triangulation_2<
-	K,
-	CGAL::Triangulation_data_structure_2<CGAL::Alpha_shape_vertex_base_2<K>,
-	CGAL::Alpha_shape_face_base_2<K>>
-	>
-	Triangulation_2;
-typedef CGAL::Alpha_shape_2<Triangulation_2>                 Alpha_shape_2;
-//typedef CGAL::Triangulation_data_structure_2<CGAL::Triangulation_vertex_base_2<K>, CGAL::Constrained_triangulation_face_base_2<K, CGAL::Triangulation_face_base_with_info_2<FaceInfo2, K>>>               TDS;
-typedef CGAL::Exact_predicates_tag                                Itag;
 
 void PreviewPolygonize::recalculate()
 {
@@ -106,6 +60,8 @@ void PreviewPolygonize::recalculate()
 	const auto [W, H] = img.getSize();
 	std::deque<Point> points;
 	Clear(orgVertices);
+	auto prevW = W - 1;
+	auto prevH = H - 1;
 	for (unsigned x = 0; x != W; x++)
 		for (unsigned y = 0; y != H; y++)
 		{
@@ -126,187 +82,139 @@ void PreviewPolygonize::recalculate()
 				if (x + 1 < W && y + 1 < H && !img.getPixel(x + 1, y + 1).a) add(bx + 1, by + 1);
 			}
 		}
-	Alpha_shape_2 alphaShaper(points.begin(), points.end(),
+
+	MakeUniquePtr(alphaShaperPtr, points.begin(), points.end(),
 		alpha//,
 		//Alpha_shape_2::GENERAL
 	);
-	auto
-		it = alphaShaper.alpha_shape_edges_begin(),
-		lim = alphaShaper.alpha_shape_edges_end();
 
-	CDTP cdtp;
-
-	segments.clear();
-	for (; it != lim; ++it)
-	{
-		auto s = alphaShaper.segment(*it);
-		auto& [a, b] = segments.emplace_back();
-		auto& p0 = s.source(); a = { (float)p0.x(), (float)p0.y() };
-		auto& p1 = s.target(); b = { (float)p1.x(), (float)p1.y() };
-		cdtp.insert_constraint(p0, p1);
-	}
-	nComponents = alphaShaper.number_solid_components();
-	LOG("num ", segments.size(), '\n');
-	cdtp.split_subconstraint_graph_into_constraints();
-	mark_domains(cdtp);
-
-	Clear(alphaVertices);
-	for (auto it = alphaShaper.Alpha_shape_vertices_begin(),
-		lim = alphaShaper.Alpha_shape_vertices_end(); it != lim; it++)
+	auto& alphaShaper = *alphaShaperPtr;
+	alphaVertices.clear();
+	for (auto it = alphaShaper.alpha_shape_vertices_begin(), lim = alphaShaper.alpha_shape_vertices_end(); it != lim; it++)
 	{
 		auto& p = (**it).point();
 		alphaVertices.emplace_back((float)p.x(), (float)p.y());
 	}
 
-	trigs.clear();
-	for (Face_handle vIt : cdtp.finite_face_handles())
+	segments.clear();
+	cdtp.clear();
+	g.clear();
+	for (auto it = alphaShaper.alpha_shape_edges_begin(), lim = alphaShaper.alpha_shape_edges_end(); it != lim; ++it)
 	{
-		if (!vIt->info().in_domain())
-			continue;
+		auto s = alphaShaper.segment(*it);
+		auto& [a, b] = segments.emplace_back();
+		auto& p0 = s.source(); a = { (float)p0.x(), (float)p0.y() };
+		auto& p1 = s.target(); b = { (float)p1.x(), (float)p1.y() };
+		g[p0].emplace_back(p1);
+		g[p1].emplace_back(p0);
+		//LOG(p0, ' ', p1, '\n');
+		cdtp.insert_constraint(p0, p1);
+	}
 
-		auto& v0 = vIt->vertex(0)->point();
-		auto& v1 = vIt->vertex(1)->point();
-		auto& v2 = vIt->vertex(2)->point();
+	nComponents = alphaShaper.number_solid_components();
 
+	//cdtp.split_subconstraint_graph_into_constraints();
+
+	mark_domains(cdtp);
+	trigs.clear();
+	for (auto& vIt : cdtp.finite_face_handles())
+		if (vIt->info().in_domain())
+			for (int i = 0; i != 3; i++)
+			{
+				auto& v = vIt->vertex(i)->point();
+				auto& t = trigs.emplace_back();
+				t.position = { (float)v.x(),(float)v.y() };
+				t.color = trigColor;
+			}
+
+	updateSimplification();
+}
+
+void PreviewPolygonize::updateSimplification()
+{
+	namespace PS = CGAL::Polyline_simplification_2;
+	typedef PS::Stop_below_count_ratio_threshold Stop;
+	typedef PS::Squared_distance_cost Cost;
+
+	CDTP2 ct;
+	auto& alphaShaper = *alphaShaperPtr;
+	std::deque<std::deque<Point>> Ps;
+	std::set<Point> visited;
+	for (const auto& [start, _] : g)
+	{
+		if (visited.emplace(start).second)
 		{
-			auto& vert = trigs.emplace_back();
-			vert.position = { (float)v0.x(),(float)v0.y() };
-			vert.color = trigColor;
-		}
-
-		{
-			auto& vert = trigs.emplace_back();
-			vert.position = { (float)v1.x(),(float)v1.y() };
-			vert.color = trigColor;
-		}
-
-		{
-			auto& vert = trigs.emplace_back();
-			vert.position = { (float)v2.x(),(float)v2.y() };
-			vert.color = trigColor;
+			auto& P = Ps.emplace_back();
+			auto get = [&](const Point& p) -> std::optional<Point>
+			{
+				auto& ns = g[p];
+				for (size_t i = 0, lim = ns.size(); i != lim; i++)
+				{
+					const auto& n = ns[i];
+					if (visited.emplace(n).second)
+						return n;
+				}
+				return {};
+			};
+			Point pIt = start;
+			P.emplace_back(start);
+			while (const auto pOpt = get(pIt))
+			{
+				const auto& nxt = *pOpt;
+				P.emplace_back(nxt);
+				pIt = nxt;
+			}
 		}
 	}
-	trigCnt = trigs.size() / 3;
-	////std::deque<std::deque<Point>> p;
-	//{
-	//	//Marked_face_set marked_face_set(false);
-	//	//Finite_faces_iterator face_it;
-	//	//size_type nb_solid_components = 0;
-	//	//
-	//	//if (number_of_vertices() == 0)
-	//	//	return 0;
-	//	auto vIt = alphaShaper.faces_begin();
-	//	auto vLim = alphaShaper.faces_end();
-	//	int cnt = 0;
-	//	trigs.clear();
-	//	for (; vIt != vLim; vIt++)
-	//	{
-	//		if (alphaShaper.classify(vIt) != alphaShaper.INTERIOR)
-	//			continue;
-	//
-	//		cnt++;
-	//		auto& v0 = vIt->vertex(0)->point();
-	//		auto& v1 = vIt->vertex(1)->point();
-	//		auto& v2 = vIt->vertex(2)->point();
-	//
-	//		{
-	//			auto& vert = trigs.emplace_back();
-	//			vert.position = { (float)v0.x(),(float)v0.y() };
-	//			vert.color = trigColor;
-	//		}
-	//
-	//		{
-	//			auto& vert = trigs.emplace_back();
-	//			vert.position = { (float)v1.x(),(float)v1.y() };
-	//			vert.color = trigColor;
-	//		}
-	//
-	//		{
-	//			auto& vert = trigs.emplace_back();
-	//			vert.position = { (float)v2.x(),(float)v2.y() };
-	//			vert.color = trigColor;
-	//		}
-	//
-	//		{
-	//			auto& vert = trigs.emplace_back();
-	//			vert.position = { (float)v0.x(),(float)v0.y() };
-	//			vert.color = trigColor;
-	//		}
-	//	}
-	//	LOG("cnt ", cnt, '\n');
-	//}
 
-	////Insert the polygons into a constrained triangulation
-	//for (const auto& a : p)
-	//	cdt.insert_constraint(a.begin(), a.end(), true);
-	//
-	////Mark facets that are inside the domain bounded by the polygon
-	//mark_domains(cdt);
-	////const auto nTriangles = cdt.all_face_handles().size();
-	//LOG("n tr ", nTriangles, '\n');
-	//trigs.resize(nTriangles * 4);
-	//size_t cnt = 0;
-	//for (auto& faceHandle : cdt.finite_face_handles())
-	//{
-	//	auto& f = *faceHandle;
-	//	for (int i = 0; i <= 3; i++)
-	//	{
-	//		auto& v = *f.vertex(i % 3);
-	//		auto& p = v.point();
-	//		trigs[cnt].position = { (float)p.x(),(float)p.y() };
-	//		trigs[cnt].color = trigColor;
-	//		cnt++;
-	//	}
-	//}
+	for (auto& P : Ps)
+		ct.insert_constraint(P.begin(), P.end(), true);
 
-//construct two non-intersecting nested polygons
-//Polygon_2 polygon1;
-//polygon1.push_back(Point(0, 0));
-//polygon1.push_back(Point(2, 0));
-//polygon1.push_back(Point(2, 2));
-//polygon1.push_back(Point(0, 2));
-//Polygon_2 polygon2;
-//polygon2.push_back(Point(0.5, 0.5));
-//polygon2.push_back(Point(1.5, 0.5));
-//polygon2.push_back(Point(1.5, 1.5));
-//polygon2.push_back(Point(0.5, 1.5));
-////Insert the polygons into a constrained triangulation
-//CDT cdt;
-//cdt.insert_constraint(polygon1.vertices_begin(), polygon1.vertices_end(), true);
-//cdt.insert_constraint(polygon2.vertices_begin(), polygon2.vertices_end(), true);
-////Mark facets that are inside the domain bounded by the polygon
-//mark_domains(cdt);
-//int count = 0;
-//for (Face_handle vIt : cdt.finite_face_handles())
-//{
-//	if (vIt->info().in_domain())
-//	{
-//		++count;
-//
-//		auto& v0 = vIt->vertex(0)->point();
-//		auto& v1 = vIt->vertex(1)->point();
-//		auto& v2 = vIt->vertex(2)->point();
-//
-//		{
-//			auto& vert = trigs.emplace_back();
-//			vert.position = { (float)v0.x(),(float)v0.y() };
-//			vert.color = trigColor;
-//		}
-//
-//		{
-//			auto& vert = trigs.emplace_back();
-//			vert.position = { (float)v1.x(),(float)v1.y() };
-//			vert.color = trigColor;
-//		}
-//
-//		{
-//			auto& vert = trigs.emplace_back();
-//			vert.position = { (float)v2.x(),(float)v2.y() };
-//			vert.color = trigColor;
-//		}
-//	}
-//}
-//std::cout << "There are " << count << " facets in the domain." << std::endl;
+	//LOG(ct.number_of_vertices(), '\n');
+	PS::simplify(ct, Cost(), Stop(simplificationRatio));
+	//LOG(ct.number_of_vertices(), '\n');
+
+	mark_domains(ct);
+	trigsSimplified.clear();
+	trigCnt = 0;
+	for (auto& vIt : ct.finite_face_handles())
+		if (vIt->info().in_domain())
+		{
+			trigCnt++;
+			for (int i = 0; i != 3; i++)
+			{
+				auto& v = vIt->vertex(i)->point();
+				auto& vert = trigsSimplified.emplace_back();
+				vert.position = { (float)v.x(),(float)v.y() };
+				vert.color = trigColor;
+			}
+		}
+
+	segsSimplified.clear();
+	for (auto& cit : ct.constraints())
+	{
+		std::deque<Point> d;
+		for (auto& p : ct.points_in_constraint(cit))
+			d.emplace_back(p);
+		if (auto lim = d.size())
+		{
+			auto to = [&](auto&& p)
+			{
+				sf::Vertex v;
+				v.position = { (float)p.x(), (float)p.y() };
+				v.color = sf::Color::Cyan;
+				return v;
+			};
+			auto off = segsSimplified.size();
+			segsSimplified.emplace_back(to(d.front()));
+			for (size_t i = 1; i != lim; i++)
+			{
+				segsSimplified.emplace_back(to(d[i]));
+				segsSimplified.emplace_back(segsSimplified.back());
+			}
+			segsSimplified.emplace_back(segsSimplified[off]);
+		}
+	}
 }
 
 void PreviewPolygonize::pollEvent(const sf::Event& e)
@@ -315,15 +223,26 @@ void PreviewPolygonize::pollEvent(const sf::Event& e)
 
 void PreviewPolygonize::drawUIImpl()
 {
-	ImGui::Checkbox("Org Vertices", &showOrgVertices);
-	ImGui::Checkbox("Alpha Shape", &showAlphaShape);
-	ImGui::Checkbox("Alpha Vertices", &showAlphaVertices);
-	ImGui::Checkbox("Triangles", &drawTrigs);
-	static constexpr double
-		vmin = .5,
-		//vmin = .25,
-		vmax = 100000.;
-	if (ImGui::DragScalar("Alpha", ImGuiDataType_Double, &alpha, 1.f, &vmin, &vmax, "%.3f", 0)) recalculate();
+	ImGui::Checkbox("Original Vertices", &showOrgVertices);
+	ImGui::Checkbox("Alpha Shape Polylines", &drawAlphaShapePolylines);
+	ImGui::Checkbox("Alpha Shape Vertices", &showAlphaVertices);
+	ImGui::Checkbox("Alpha Shape Triangles", &drawTrigs);
+	ImGui::Checkbox("Simplified Vertices", &showVerticesSimplified);
+	ImGui::Checkbox("Simplified Triangles", &drawTrigsSimplified);
+	ImGui::Checkbox("Simplified Polylines", &drawSimplifiedPolylines);
+	{
+		static constexpr double
+			vmin = .5,
+			//vmin = .25,
+			vmax = 100000.;
+		if (ImGui::DragScalar("Alpha", ImGuiDataType_Double, &alpha, 1.f, &vmin, &vmax, "%.3f", 0)) recalculate();
+	}
+	{
+		static constexpr double
+			vmin = .01,
+			vmax = 1;
+		if (ImGui::SliderScalar("Simplification Ratio", ImGuiDataType_Double, &simplificationRatio, &vmin, &vmax, "%.3f", 0)) updateSimplification();
+	}
 	ImGui::Text("Vertices: %zu", alphaVertices.size());
 	ImGui::Text("Components: %zu", nComponents);
 	ImGui::Text("Triangles: %zu", trigCnt);
@@ -336,7 +255,7 @@ void PreviewPolygonize::draw()
 	{
 		auto& imgViewer = viewerBase.accessImgViewer();
 		auto& c = imgViewer.circle;
-		c.setFillColor(vertexColor);
+		c.setFillColor(orgVertexColor);
 		constexpr auto R = .25f;
 		c.setRadius(R);
 		c.setOrigin(R, R);
@@ -360,39 +279,65 @@ void PreviewPolygonize::draw()
 			w.draw(c);
 		}
 	}
-	if (showAlphaShape)
+	if (showVerticesSimplified)
 	{
-		//int cnt = 0;
+		auto& imgViewer = viewerBase.accessImgViewer();
+		auto& c = imgViewer.circle;
+		c.setFillColor(alphaVertColor);
+		constexpr auto R = .25f;
+		c.setRadius(R);
+		c.setOrigin(R, R);
+		for (const auto& coord : vertices)
+		{
+			c.setPosition(coord);
+			w.draw(c);
+		}
+	}
+	if (drawAlphaShapePolylines)
+	{
 		for (const auto& [a, b] : segments)
 		{
 			sf::Vertex v[2]
 			{
-				//{a, cnt&1?sf::Color::Green:sf::Color::Blue},
-				//{b, cnt&1?sf::Color::Green:sf::Color::Blue}
 				{a, sf::Color::Cyan },
 				{b, sf::Color::Cyan }
 			};
 			w.draw(v, 2, sf::Lines);
-			//cnt++;
 		}
 	}
-	if (drawTrigs)
+	auto drawTrigsH = [&](auto&& t)
 	{
-		const auto len = trigs.size();
+		const auto len = t.size();
 		for (size_t i = 0; i != len; i += 3)
 		{
 			auto d = [&](int x, int y)
 			{
 				sf::Vertex v[2]
 				{
-					trigs[i + x],
-					trigs[i + y],
+					t[i + x],
+					t[i + y],
 				};
 				w.draw(v, 2, sf::Lines);
 			};
 			for (int j = 0; j != 3; j++)
 				d(j, (j + 1) % 3);
 		}
+	};
+	if (drawTrigs)
+		drawTrigsH(trigs);
+	if (drawTrigsSimplified)
+		drawTrigsH(trigsSimplified);
+	if (drawSimplifiedPolylines)
+	{
+		//for (const auto& [a, b] : segsSimplified)
+		//{
+		//	sf::Vertex v[2]
+		//	{
+		//		{a, sf::Color::Cyan },
+		//		{b, sf::Color::Cyan }
+		//	};
+		//}
+			w.draw(segsSimplified.data(), segsSimplified.size(), sf::Lines);
 	}
 }
 
@@ -408,13 +353,22 @@ const char* PreviewPolygonize::getTitle()
 PreviewPolygonize::PreviewPolygonize(ViewerBase& viewerBase) :
 	Previewer(viewerBase),
 	alpha(1),
-	vertexColor(sf::Color::Black),
+	orgVertexColor(sf::Color(34, 33, 169)),
 	showOrgVertices(false),
-	showAlphaShape(true),
-	showAlphaVertices(true),
-	drawTrigs(true),
-	trigColor(sf::Color ::Yellow),
-	alphaVertColor(sf::Color::Red)
+	drawAlphaShapePolylines(false),
+	showAlphaVertices(false),
+	showVerticesSimplified(false),
+	drawTrigs(false),
+	drawTrigsSimplified(false),
+	drawSimplifiedPolylines(true),
+	trigColor(sf::Color::Yellow),
+	alphaVertColor(sf::Color::Red),
+	simplificationRatio(1.)
 {
 	recalculate();
+}
+
+bool FaceInfo2::in_domain()
+{
+	return nesting_level % 2 == 1;
 }
