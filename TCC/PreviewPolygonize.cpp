@@ -60,8 +60,6 @@ void PreviewPolygonize::recalculate()
 	const auto [W, H] = img.getSize();
 	std::deque<Point> points;
 	Clear(orgVertices);
-	auto prevW = W - 1;
-	auto prevH = H - 1;
 	for (unsigned x = 0; x != W; x++)
 		for (unsigned y = 0; y != H; y++)
 		{
