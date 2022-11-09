@@ -3,6 +3,7 @@
 
 #include "Application.hpp"
 #include "Utilities.hpp"
+#include "DrawUtil.hpp"
 
 //std::vector<vec2d> v;
 
@@ -18,6 +19,7 @@ void PreviewVoronoi::onImgChangeImpl()
 
 void PreviewVoronoi::draw()
 {
+	dt = c.restart().asSeconds();
 	auto& w = viewerBase.app.window;
 	const auto px = sf::Mouse::getPosition(w);
 	const auto mouseCoord = w.mapPixelToCoords(px);
@@ -25,16 +27,15 @@ void PreviewVoronoi::draw()
 	const auto n = robotCoords.size();
 	vec2d mouseCoordD{ mouseCoord.x, mouseCoord.y };
 	auto M = std::numeric_limits<double>::max();
-	auto r2 = square(viewerBase.radius);
 
 	circleHovered = -1;
-	if (NotHoveringIMGui())
+	if (drawRobots && NotHoveringIMGui())
 	{
 		// update circleHovered
 		for (size_t i = 0; i != n; i++)
 		{
 			auto d2 = distanceSquared(robotCoords[i], mouseCoordD);
-			if (d2 < M && d2 < r2)
+			if (d2 < M && d2 < square(robotRadius[i]))
 			{
 				circleHovered = i;
 				M = d2;
@@ -48,9 +49,10 @@ void PreviewVoronoi::draw()
 		if (draw)
 		{
 			circle.setFillColor(color);
-			for (const auto& c : coords)
+			for (size_t i = 0, lim = coords.size(); i != lim; i++)
 			{
-				circle.setPosition(c);
+				PrepareCircleRadius(circle, robotRadius[i]);
+				circle.setPosition(coords[i]);
 				w.draw(circle);
 			}
 		}
@@ -66,7 +68,8 @@ void PreviewVoronoi::draw()
 		if (circleHovered != -1)
 		{
 			circle.setFillColor(sf::Color::Yellow);
-			circle.setOutlineThickness(-.1f * viewerBase.radius);
+			PrepareCircleRadius(circle, robotRadius[circleHovered]);
+			circle.setOutlineThickness(-.1f * robotRadius[circleHovered]);
 			circle.setPosition(robotCoords[circleHovered]);
 			w.draw(circle);
 			circle.setOutlineThickness(0);
@@ -102,6 +105,14 @@ void PreviewVoronoi::draw()
 			}
 		}
 	}
+
+	if (circleHovered != -1)
+	{
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+			changeRadius(1);
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+			changeRadius(-1);
+	}
 }
 
 sf::Vector2f PreviewVoronoi::getMouseCoord()
@@ -130,13 +141,6 @@ sf::Vector2f PreviewVoronoi::getHoveredCircleCenter()
 	return center;
 }
 
-void PreviewVoronoi::updatedCircleRadius()
-{
-	auto& circle = viewerBase.circle;
-	circle.setRadius(viewerBase.radius);
-	circle.setOrigin(viewerBase.radius, viewerBase.radius);
-}
-
 void PreviewVoronoi::recalculateVoronoi()
 {
 	voronoiInfo.update(robotCoords);
@@ -147,25 +151,30 @@ void PreviewVoronoi::pollEvent(const sf::Event& e)
 	auto& w = viewerBase.app.window;
 	if (NotHoveringIMGui())
 	{
-		switch (e.type)
+		if (circleHovered != -1)
 		{
-		case sf::Event::KeyPressed:
-		{
-			switch (e.key.code)
+			switch (e.type)
 			{
-			case sf::Keyboard::Delete:
+			case sf::Event::KeyPressed:
 			{
-				if (circleHovered != -1)
+				switch (e.key.code)
+				{
+				case sf::Keyboard::Delete:
 				{
 					robotCoords.erase(robotCoords.begin() + circleHovered);
+					robotRadius.erase(robotRadius.begin() + circleHovered);
+					robotRadiusOffs.erase(robotRadiusOffs.begin() + circleHovered);
 					recalculateVoronoi();
 					clearPointersToRobots();
+				}
+				break;
 				}
 			}
 			break;
 			}
 		}
-		break;
+		switch (e.type)
+		{
 		case sf::Event::MouseMoved:
 		{
 			movedSinceLeftClick = true;
@@ -176,8 +185,7 @@ void PreviewVoronoi::pollEvent(const sf::Event& e)
 				auto newCoord = w.mapPixelToCoords(point);
 				auto newPos = newCoord + circleOff;
 				vec2d newP{ (double)newPos.x, (double)newPos.y };
-				auto& coord = robotCoords[circleMovingIndex];
-				coord = newP;
+				robotCoords[circleMovingIndex] = newP;
 				recalculateVoronoi();
 			}
 		}
@@ -241,7 +249,10 @@ void PreviewVoronoi::drawUIImpl()
 		MIN_R = .5,
 		MAX_R = 32;
 	if (ImGui::SliderFloat("Radius", &viewerBase.radius, MIN_R, MAX_R))
-		updatedCircleRadius();
+	{
+		for (size_t i = 0, lim = robotCoords.size(); i != lim; i++)
+			robotRadius[i] = robotRadiusOffs[i] * viewerBase.radius;
+	}
 	if (ImGui::Button("Clear"))
 		clear();
 	if (!navigator)
@@ -259,9 +270,20 @@ void PreviewVoronoi::drawUIImpl()
 	}
 }
 
+void PreviewVoronoi::changeRadius(float m)
+{
+	static constexpr float DELTA = 1.f;
+	auto& cur = robotRadiusOffs[circleHovered];
+	cur += DELTA * dt * m;
+	cur = std::clamp(cur, MIN_FRAC, MAX_FRAC);
+	robotRadius[circleHovered] = cur * viewerBase.radius;
+}
+
 void PreviewVoronoi::addPoint(const sf::Vector2f& coord)
 {
 	robotCoords.emplace_back(coord.x, coord.y);
+	robotRadiusOffs.emplace_back(1.f);
+	robotRadius.emplace_back(viewerBase.radius);
 	recalculateVoronoi();
 }
 
@@ -281,7 +303,6 @@ PreviewVoronoi::PreviewVoronoi(ViewerBase& viewerBase) :
 {
 	auto& circle = viewerBase.circle;
 	circle.setOutlineColor(sf::Color::Green);
-	updatedCircleRadius();
 }
 
 PreviewVoronoi::NavigatorInfo::NavigatorInfo(PreviewVoronoi& previewer) :

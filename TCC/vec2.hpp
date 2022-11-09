@@ -5,7 +5,7 @@ struct vec2_t
 {
 	constexpr vec2_t();
 	constexpr vec2_t(T x, T y);
-	constexpr vec2_t(T val);
+	constexpr explicit vec2_t(T val);
 	constexpr vec2_t(const sf::Vector2<T>& v);
 	T x, y;
 	operator sf::Vector2f() const;

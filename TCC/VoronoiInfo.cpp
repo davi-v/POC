@@ -14,7 +14,6 @@ VoronoiInfo::VoronoiInfo(const ImgViewer& imgViewer) :
 	{
 		auto& col = prefixCols[j];
 		col.resize(R);
-		const auto xCoord = j + .5;
 		for (unsigned i = 0; i != R; i++)
 		{
 			auto px = img.getPixel(j, i);
@@ -27,20 +26,20 @@ VoronoiInfo::VoronoiInfo(const ImgViewer& imgViewer) :
 				col[i] = col[i - 1];
 			const auto yCoord = i + .5;
 			auto& [a, b] = col[i];
-			a += w * vec2d{ xCoord, yCoord };
+			a += w * yCoord;
 			b += w;
 		}
 	}
 }
 
-void VoronoiInfo::update(const std::vector<vec2d>& robotCoords)
+void VoronoiInfo::update(const std::vector<vec2d>& coords)
 {
-	auto n = robotCoords.size();
+	auto n = coords.size();
 	voronoiCells.resize(n);
 
 	auto& v = voronoi;
 
-	v.update(robotCoords);
+	v.update(coords);
 	v.fillCellEdges(voronoiCells);
 
 	centroids = CalculateCentroids(voronoiCells);
@@ -55,135 +54,101 @@ std::vector<vec2d> VoronoiInfo::getTargets()
 	return ret;
 }
 
-std::pair<vec2d, double> VoronoiInfo::getCentroidAndMassBelowSegment(vec2d a, vec2d b)
+std::pair<vec2d, double> VoronoiInfo::getCentroidTimesMassAndMassBelowSegment(vec2d a, const vec2d& b)
 {
 	const auto& img = imgViewer.currentImage;
 	const auto size = img->getSize();
 	const int C = (int)size.x, R = size.y;
 
-	auto inImg = [&](int x, int y)
-	{
-		return x >= 0 && x < C && y >= 0 && y < R;
-	};
-
-	// doesn't include x, y
-	auto getSumOfCoordsTimesMassAndSumBelow = [&](int cx, int cy) -> std::pair<vec2d, double>
-	{
-		if (cx >= 0 && cx < C)
-		{
-			const auto& curCol = prefixCols[cx];
-			if (cy >= R)
-				return {};
-			const auto& last = curCol.back();
-			if (cy >= 0)
-			{
-				const auto& cur = curCol[cy];
-				return { last.first - cur.first, last.second - cur.second };
-			}
-			return last;
-		}
-		return {};
-	};
-
-	vec2d centroid;
+	vec2d cm;
 	double tsm = 0;
-
-	auto handleSum = [&](double b1, double b2, double h, const int cx, const int cy)
-	{
-		vec2d nxt = a + vec2d{ h, b1 - b2 };
-		if (h)
-		{
-			const auto [scm, sm] = getSumOfCoordsTimesMassAndSumBelow(cx, cy);
-			if (sm)
-			{
-				const auto lim = a.x + h;
-				const double avgX = (lim + a.x) / 2;
-				const double offXFromCenter = fmod(avgX, 1) - .5;
-				auto newCentroid = scm / sm;
-				newCentroid.x += offXFromCenter;
-				const double newMass = sm * h;
-				mergePrevious(centroid, tsm, newCentroid, newMass);
-			}
-
-			vec2d bot1{ a.x, a.y + 1 - fmod(a.y, 1) };
-			vec2d bot2 = bot1 + vec2d{ h, 0 };
-
-			// merge with trapezoid centroid
-			auto handle = [&](auto&& p1, auto&& p2, auto&& p3, double strength)
-			{
-				if (const auto trigMass = AreaTrig(p1, p2, p3) * strength)
-				{
-					const auto trigCentroid = (p1 + p2 + p3) / 3;
-					mergePrevious(centroid, tsm, trigCentroid, trigMass);
-				}
-			};
-			const auto strength = getPixelW(cx, cy);
-
-			handle(a, bot2, bot1, strength);
-			handle(a, nxt, bot2, strength);
-		}
-		a = nxt;
-	};
-
-	const auto getPx = [&](double v)
-	{
-		return (int)floor(v);
-	};
-
-	int
-		cx = getPx(a.x),
-		cy = getPx(a.y);
-	double b1 = 1 - fmod(a.y, 1);
 	double totalDiffX = b.x - a.x;
-	const bool up = a.y > b.y;
 	if (totalDiffX)
 	{
+		auto
+			dfx = floor(a.x),
+			dfy = floor(a.y);
+		auto
+			cx = (int)dfx,
+			cy = (int)dfy;
 		auto totalDiffY = a.y - b.y;
+		const bool up = totalDiffY > 0;
 		auto tan = totalDiffY / totalDiffX;
+		double absTan = abs(tan);
 		bool running = true;
-		while (running)
+		double dxToNextRightWall = 1 - a.x + dfx;
+		double b1 = 1 - a.y + dfy, b2, h;
+		do
 		{
 			double dyToNextVertWall;
 			if (up)
 				dyToNextVertWall = 1 - b1;
 			else
 				dyToNextVertWall = b1;
-
-			const auto curOffXInCell = fmod(a.x, 1);
-			const auto dxToNextRightWall = 1 - curOffXInCell;
-
-			const auto curTanToNextCorner = dyToNextVertWall / dxToNextRightWall;
-
-			if (abs(tan) > abs(curTanToNextCorner)) // foi pra cima
+			auto handleSum = [&]
 			{
-				const double faltay = abs(a.y - b.y);
-				double h;
-				if (faltay < dyToNextVertWall)
+				b2 = b1 + tan * h;
+				vec2d nxt = a + vec2d{ h, b1 - b2 };
+				if (h)
+				{
+					// doesn't include cx, cy
+					auto getSumOfCoordsTimesMassAndSumBelow = [&]() -> std::pair<double, double>
+					{
+						if (cx >= 0 && cx < C)
+						{
+							const auto& curCol = prefixCols[cx];
+							if (cy >= R)
+								return {};
+							const auto& last = curCol.back();
+							const auto& [yl, ml] = last;
+							if (cy >= 0)
+							{
+								const auto& [yc, mc] = curCol[cy];
+								return { yl - yc, ml - mc};
+							}
+							return { yl, ml };
+						}
+						return {};
+					};
+					const auto [yc, sm] = getSumOfCoordsTimesMassAndSumBelow();
+					const double avgX = (a.x + nxt.x) * .5;
+					const double m = sm * h;
+					mergePrevious(cm, tsm, vec2d{ avgX * m, yc * h }, m);
+
+					const auto strength = getPixelW(cx, cy);
+					// merge with trapezoid centroid (aqui dividimos o trapézio em 2 triângulos)
+					auto handle = [&](const vec2d& p2, const vec2d& p3)
+					{
+						const auto trigCentroid = (a + p2 + p3) / 3;
+						const auto trigMass = AreaTrig(a, p2, p3) * strength;
+						mergePrevious(cm, tsm, trigCentroid * trigMass, trigMass);
+					};
+					vec2d bot1{ a.x, a.y + b1 };
+					vec2d bot2 = bot1; bot2.x += h;
+					handle(bot2, bot1);
+					handle(nxt, bot2);
+				}
+				a = nxt;
+			};
+			if (dyToNextVertWall < absTan * dxToNextRightWall) // mudou verticalmente
+			{
+				if (abs(a.y - b.y) < dyToNextVertWall)
 				{
 					h = b.x - a.x;
 					running = false;
 				}
 				else
-					h = dyToNextVertWall / abs(tan);
-
-				const double b2 = b1 + tan * h;
-
-				handleSum(b1, b2, h, cx, cy);
-				if (up)
-				{
-					b1 = 0;
-					cy--;
-				}
-				else
-				{
-					b1 = 1;
-					cy++;
-				}
+					h = dyToNextVertWall / absTan;
+				handleSum();
+				static constexpr double NEW_B[]{ 1, 0 };
+				static constexpr int CY_OFF[]{ 1, -1 };
+				b1 = NEW_B[up];
+				cy += CY_OFF[up];
+				dxToNextRightWall -= h;
 			}
-			else // foi pra direita
+			else // mudou pro quadrado da direita
 			{
 				const double faltax = b.x - a.x;
-				double h;
 				if (faltax < dxToNextRightWall)
 				{
 					h = faltax;
@@ -191,16 +156,14 @@ std::pair<vec2d, double> VoronoiInfo::getCentroidAndMassBelowSegment(vec2d a, ve
 				}
 				else
 					h = dxToNextRightWall;
-
-				const double b2 = b1 + tan * h;
-
-				handleSum(b1, b2, h, cx, cy);
+				handleSum();
 				b1 = b2;
 				cx++;
+				dxToNextRightWall = 1;
 			}
-		}
+		} while (running);
 	}
-	return { centroid, tsm };
+	return { cm, tsm };
 }
 
 vec2d VoronoiInfo::getWeightedMeanOfCoords(size_t cellIndex)
@@ -210,8 +173,8 @@ vec2d VoronoiInfo::getWeightedMeanOfCoords(size_t cellIndex)
 
 	const auto& cell = voronoiCells[cellIndex];
 
-	vec2d centroid;
-	double m = 0;
+	vec2d cmTotal;
+	double mTotal = 0;
 
 	const auto n = cell.size();
 	for (size_t i = 0; i != n; i++)
@@ -219,26 +182,23 @@ vec2d VoronoiInfo::getWeightedMeanOfCoords(size_t cellIndex)
 		const auto
 			curCoord = cell[i] - coordsOff,
 			nxtCoord = cell[(i + 1) % n] - coordsOff;
+		vec2d cm; double m;
 		if (curCoord.x < nxtCoord.x)
-		{
-			auto [newCentroid, newMass] = getCentroidAndMassBelowSegment(curCoord, nxtCoord);
-			if (newMass)
-				mergePrevious(centroid, m, newCentroid, newMass);
-		}
+			std::tie(cm, m) = getCentroidTimesMassAndMassBelowSegment(curCoord, nxtCoord);
 		else
 		{
-			auto [c2, m2] = getCentroidAndMassBelowSegment(nxtCoord, curCoord);
-			if (m2)
-			{
-				auto m1 = m - m2;
-				centroid = (centroid * m - c2 * m2) / m1;
-				m = m1;
-			}
+			std::tie(cm, m) = getCentroidTimesMassAndMassBelowSegment(nxtCoord, curCoord);
+			cm = -cm;
+			m = -m;
 		}
+		mergePrevious(cmTotal, mTotal, cm, m);
 	}
-	if (abs(m) > EPS_DBS) // uma fonte de erros é no cálculo de h, por exemplo
-		return centroid + coordsOff;
-	return centroids[cellIndex];
+	if (abs(mTotal) > EPS_DBS) // um exemplo de fonte de erros é no cálculo das massas dos triângulos
+	{
+		auto c = cmTotal / mTotal;
+		return c + coordsOff;
+	}
+	return voronoi.getCoord(cellIndex);
 }
 
 double VoronoiInfo::getPixelW(unsigned i, unsigned j)
@@ -255,9 +215,8 @@ double VoronoiInfo::getPixelW(unsigned i, unsigned j)
 
 void VoronoiInfo::mergePrevious(vec2d& c1, double& m1, const vec2d& c2, const double& m2)
 {
-	const auto tm = m1 + m2;
-	c1 = (c1 * m1 + c2 * m2) / tm;
-	m1 = tm;
+	c1 += c2;
+	m1 += m2;
 }
 
 size_t VoronoiInfo::findCell(double x, double y)

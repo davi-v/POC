@@ -10,6 +10,9 @@ class PreviewVoronoi : public Previewer
 	void onImgChangeImpl() override;
 	void draw() override;
 	void drawUIImpl() override;
+	sf::Clock c;
+	float dt;
+	void changeRadius(float m);
 
 public:
 	struct NavigatorInfo
@@ -37,7 +40,8 @@ public:
 	
 	sf::Vector2f circleOff;
 
-	void updatedCircleRadius();
+	
+
 	VoronoiInfo voronoiInfo;
 	void recalculateVoronoi();
 	
@@ -49,7 +53,11 @@ public:
 	
 	
 	sf::Vector2f lastClickedCoord;
-	std::vector<vec2d> robotCoords;
+	static constexpr float
+		MAX_FRAC = 10,
+		MIN_FRAC = 0.1f;
+	std::vector<vec2d> robotCoords; // por enquanto precisa ser sequencial por causa do backend do voronoi
+	std::deque<float> robotRadiusOffs, robotRadius;
 	void addPoint(const sf::Vector2f& coord);
 public:
 	PreviewVoronoi(ViewerBase& viewerBase);

@@ -53,6 +53,12 @@ void Voronoi::update(const VecCoords& coords)
     MakeUniquePtr(diagram, coords, rect);
 }
 
+vec2d Voronoi::getCoord(size_t i) const
+{
+    const auto& p = point_data_[i];
+    return { p.x(), p.y() };
+}
+
 Voronoi::~Voronoi()
 {
 }

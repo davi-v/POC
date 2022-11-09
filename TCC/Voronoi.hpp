@@ -28,6 +28,7 @@ class Voronoi
 public:
 	Voronoi(const sf::Rect<double>& rect);
 	void update(const VecCoords& coords);
+	vec2d getCoord(size_t i) const;
 	~Voronoi();
 	std::vector<Edge> getEdges() const;
 	void fillCellEdges(std::vector<Cell>& v) const;
