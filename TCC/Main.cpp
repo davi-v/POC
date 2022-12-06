@@ -26,9 +26,10 @@ void run()
 #ifdef _DEBUG
 		sf::Style::Close
 #else
-		sf::Style::Fullscreen
+		//sf::Style::Fullscreen
 #endif
 	};
+	window.setVerticalSyncEnabled(true);
 
 #ifdef USE_CUSTOM_FONT_IN_IMGUI
 	ImGui::SFML::Init(window, false);
@@ -68,8 +69,9 @@ void run()
 					tex.create(x, y);
 					tex.update(window);
 					auto img = tex.copyToImage();
-					auto f = GetUniqueNameWithCurrentTime(SCREENSHOTS_DIR, SCREENSHOT_EXT);
-					img.saveToFile(f);
+					const auto path = GetUniqueNameWithCurrentTime(SCREENSHOTS_DIR, SCREENSHOT_EXT);
+					img.saveToFile(path);
+					app.addMessage(path);
 				}
 				break;
 				}
@@ -86,6 +88,7 @@ void run()
 
 int main()
 {
+	NFD_Init();
 	try
 	{
 		run();
@@ -94,4 +97,5 @@ int main()
 	{
 		MessageBoxA(0, "Um erro irrecuperável ocorreu, como falta de memória", e.what(), MB_OK);
 	}
+	NFD_Quit();
 }

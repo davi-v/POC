@@ -58,16 +58,21 @@ std::string GetUniqueNameWithCurrentTime(const std::string& prepend, const std::
 	return beg + extra + ext;
 }
 
-bool TryUpdateClosestCircle(const vec2d& coordDouble, double& curMinD2, const vec2d& coord, double r)
+bool TryUpdateClosestCircle(const vec2d& coordDouble, float& curMinD2, const vec2d& coord, float radius)
 {
 	auto d2 = square(coord - coordDouble);
-	if (d2 <= square(r)) // mouse dentro do círculo
+	if (d2 <= square(radius)) // mouse dentro do círculo
 		if (d2 < curMinD2) // círculo de raio mais próximo
 		{
-			curMinD2 = d2;
+			curMinD2 = (float)d2;
 			return true;
 		}
 	return false;
+}
+
+bool TryUpdateClosestCircle(const vec2d& coordDouble, float& curMinD2, ElementInteractable& e)
+{
+	return TryUpdateClosestCircle(coordDouble, curMinD2, e.coord, e.radius);
 }
 
 void HelpMarker(const char* desc)
@@ -102,11 +107,6 @@ sf::Color ToSFMLColor(float backgroundColor[3])
 	};
 }
 
-bool ShowRadiusOption(float& r, float maxR)
-{
-	return ImGui::SliderFloat("Radius", &r, .5f, maxR);
-}
-
 double cross(const vec2d& a, const vec2d& b)
 {
 	return a.x * b.y - a.y * b.x;
@@ -134,52 +134,37 @@ std::vector<vec2d> CalculateCentroids(const std::vector<Cell>& cells)
 	return ret;
 }
 
-// shoelace formula
-double TwiceAreaPolygonSigned(const Cell& cell)
-{
-	double ret = 0;
-	const auto n = cell.size();
-	for (size_t i = 0; i != n; i++)
-	{
-		const auto& cur = cell[i];
-		const auto& nxt = cell[(i + 1) % n];
-		ret += cross(cur, nxt);
-	}
-	return ret;
-}
-
 double AreaTrig(const vec2d& p1, const vec2d& p2, const vec2d& p3)
 {
-	return .5 * TwiceAreaPolygonSigned({ p1, p2, p3 });
+	return .5 * TwiceAreaPolygonSigned(std::array<vec2d, 3>{ p1, p2, p3 });
 }
 
-vec2d CalculateCentroid(const Cell& cell)
+bool ColorPicker3U32(const char* label, sf::Color& c)
 {
-	double sx = 0, sy = 0;
-	const auto n = cell.size();
-	for (size_t i = 0; i != n; i++)
+	float col[]
 	{
-		const auto& cur = cell[i];
-		const auto& nxt = cell[(i + 1) % n];
-		const auto c = cross(cur, nxt);
-		sx += (cur.x + nxt.x) * c;
-		sy += (cur.y + nxt.y) * c;
-	}
-	auto invM = 1. / (3 * TwiceAreaPolygonSigned(cell));
-	return { sx * invM, sy * invM };
-}
-bool ColorPicker3U32(const char* label, sf::Color& c, ImGuiColorEditFlags flags)
-{
-	float col[3];
-	col[0] = c.r / 255.f;
-	col[1] = c.g / 255.f;
-	col[2] = c.b / 255.f;
-
-	bool result = ImGui::ColorPicker3(label, col, flags);
-
-	c.r = (sf::Uint8)(col[0] * 255.f);
-	c.g = (sf::Uint8)(col[1] * 255.f);
-	c.b = (sf::Uint8)(col[2] * 255.f);
-
+		c.r / 255.f,
+		c.g / 255.f,
+		c.b / 255.f
+	};
+	bool result = ImGui::ColorEdit3(label, col);
+	c = ToSFMLColor(col);
 	return result;
+}
+
+sf::Vector2f ToSFML(const vec2f& v)
+{
+	return sf::Vector2f(v.x, v.y);
+}
+
+
+void PrepareCircleRadius(sf::CircleShape& circle, float r)
+{
+	circle.setRadius(r);
+	circle.setOrigin(r, r);
+}
+
+sf::Vector2f ToSFML(const RVO::Vector2& v)
+{
+	return { v.x(), v.y() };
 }

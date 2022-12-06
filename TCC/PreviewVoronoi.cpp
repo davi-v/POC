@@ -3,9 +3,6 @@
 
 #include "Application.hpp"
 #include "Utilities.hpp"
-#include "DrawUtil.hpp"
-
-//std::vector<vec2d> v;
 
 const char* PreviewVoronoi::getTitle()
 {
@@ -14,54 +11,44 @@ const char* PreviewVoronoi::getTitle()
 
 void PreviewVoronoi::onImgChangeImpl()
 {
+	MakeUniquePtr(voronoiInfo, viewerBase);
 	recalculateVoronoi();
 }
 
-void PreviewVoronoi::draw()
+void PreviewVoronoi::drawExtra()
 {
-	dt = c.restart().asSeconds();
-	auto& w = viewerBase.app.window;
-	const auto px = sf::Mouse::getPosition(w);
-	const auto mouseCoord = w.mapPixelToCoords(px);
-
-	const auto n = robotCoords.size();
-	vec2d mouseCoordD{ mouseCoord.x, mouseCoord.y };
-	auto M = std::numeric_limits<double>::max();
-
-	circleHovered = -1;
-	if (drawRobots && NotHoveringIMGui())
+	auto& w = viewerBase.app->window;
+	if (drawRobots)
 	{
-		// update circleHovered
-		for (size_t i = 0; i != n; i++)
+		if (viewerBase.renderType == ViewerBase::RenderType::RightColor)
 		{
-			auto d2 = distanceSquared(robotCoords[i], mouseCoordD);
-			if (d2 < M && d2 < square(robotRadius[i]))
+			sf::CircleShape circle;
+			const auto n = robotCoords.size();
+			for (size_t i = 0; i != n; i++)
 			{
-				circleHovered = i;
-				M = d2;
-			}
-		}
-	}
-
-	auto& circle = viewerBase.circle;
-	auto drawCircles = [&](bool draw, const std::vector<vec2d>& coords, const sf::Color& color)
-	{
-		if (draw)
-		{
-			circle.setFillColor(color);
-			for (size_t i = 0, lim = coords.size(); i != lim; i++)
-			{
-				PrepareCircleRadius(circle, robotRadius[i]);
-				circle.setPosition(coords[i]);
+				const auto& coord = robotCoords[i];
+				const auto& r = robotRadius[i];
+				PrepareCircleRadius(circle, r);
+				auto cf = sf::Vector2f(coord);
+				circle.setPosition(cf);
+				const auto color = viewerBase.getRightColor(cf);
+				circle.setFillColor(color);
 				w.draw(circle);
 			}
 		}
+		else
+			viewerBase.app->drawCircles(robotCoords, robotRadius, robotColor);
+	}
+	auto& circle = viewerBase.circle;
+	auto tryDrawCircles = [&](bool draw, const std::vector<vec2d>& coords, const sf::Color& color)
+	{
+		if (draw)
+			viewerBase.app->drawCircles(coords, robotRadius, color);
 	};
 	if (drawVoronoi)
-		DrawVoronoiEdges(voronoiInfo.voronoi, lineColor, w);
-	drawCircles(drawRobots, robotCoords, sf::Color::Red);
-	drawCircles(drawCenters, voronoiInfo.centroids, sf::Color::Blue);
-	drawCircles(drawTargets, voronoiInfo.targets, sf::Color::Cyan);
+		DrawVoronoiEdges(voronoiInfo->voronoi, lineColor, w);
+	tryDrawCircles(drawCenters, voronoiInfo->centroids, sf::Color::Blue);
+	tryDrawCircles(drawTargets, voronoiInfo->targets, sf::Color::Cyan);
 
 	if (highlightHoveredRobot)
 	{
@@ -79,19 +66,11 @@ void PreviewVoronoi::draw()
 	{
 		const auto point = sf::Mouse::getPosition(w);
 		const auto coord = w.mapPixelToCoords(point);
-		std::cout << coord.x << ' ' << coord.y << '\n';
-		const auto index = voronoiInfo.findCell(coord.x, coord.y);
+		const auto index = voronoiInfo->findCell(coord.x, coord.y);
 		if (index != -1)
 		{
-			const auto& c = voronoiInfo.voronoiCells[index];
+			const auto& c = voronoiInfo->voronoiCells[index];
 			const auto n = c.size();
-			//std::vector<sf::Vertex> v(n);
-			//for (size_t i = 0; i != n; i++)
-			//{
-			//	auto& p = c[i];
-			//	v[i] = { {(float)p.x, (float)p.y}, sf::Color::Blue };
-			//}
-			//w.draw(v.data(), n, sf::TrianglesFan);
 			for (size_t i = 0; i != n; i++)
 			{
 				const auto& p0 = c[i];
@@ -105,21 +84,6 @@ void PreviewVoronoi::draw()
 			}
 		}
 	}
-
-	if (circleHovered != -1)
-	{
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-			changeRadius(1);
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-			changeRadius(-1);
-	}
-}
-
-sf::Vector2f PreviewVoronoi::getMouseCoord()
-{
-	auto& w = viewerBase.app.window;
-	auto point = sf::Mouse::getPosition(w);
-	return w.mapPixelToCoords(point);
 }
 
 void PreviewVoronoi::clear()
@@ -129,235 +93,181 @@ void PreviewVoronoi::clear()
 	recalculateVoronoi();
 }
 
-void PreviewVoronoi::clearPointersToRobots()
-{
-	circleHovered = circleMovingIndex = -1;
-}
-
-sf::Vector2f PreviewVoronoi::getHoveredCircleCenter()
-{
-	const auto& c = robotCoords[circleHovered];
-	sf::Vector2f center{ (float)c.x, (float)c.y };
-	return center;
-}
-
 void PreviewVoronoi::recalculateVoronoi()
 {
-	voronoiInfo.update(robotCoords);
-}
-
-void PreviewVoronoi::pollEvent(const sf::Event& e)
-{
-	auto& w = viewerBase.app.window;
-	if (NotHoveringIMGui())
-	{
-		if (circleHovered != -1)
-		{
-			switch (e.type)
-			{
-			case sf::Event::KeyPressed:
-			{
-				switch (e.key.code)
-				{
-				case sf::Keyboard::Delete:
-				{
-					robotCoords.erase(robotCoords.begin() + circleHovered);
-					robotRadius.erase(robotRadius.begin() + circleHovered);
-					robotRadiusOffs.erase(robotRadiusOffs.begin() + circleHovered);
-					recalculateVoronoi();
-					clearPointersToRobots();
-				}
-				break;
-				}
-			}
-			break;
-			}
-		}
-		switch (e.type)
-		{
-		case sf::Event::MouseMoved:
-		{
-			movedSinceLeftClick = true;
-			if (circleMovingIndex != -1)
-			{
-				const auto& [x, y] = e.mouseMove;
-				auto point = sf::Mouse::getPosition(w);
-				auto newCoord = w.mapPixelToCoords(point);
-				auto newPos = newCoord + circleOff;
-				vec2d newP{ (double)newPos.x, (double)newPos.y };
-				robotCoords[circleMovingIndex] = newP;
-				recalculateVoronoi();
-			}
-		}
-		break;
-		case sf::Event::MouseButtonPressed:
-		{
-			switch (e.mouseButton.button)
-			{
-			case sf::Mouse::Left:
-			{
-				movedSinceLeftClick = false;
-			}
-			break;
-			case sf::Mouse::Right:
-			{
-				if (circleHovered != -1)
-				{
-					circleMovingIndex = circleHovered;
-					auto point = sf::Mouse::getPosition(w);
-					auto mouseCoord = w.mapPixelToCoords(point);
-					circleOff = getHoveredCircleCenter() - mouseCoord;
-				}
-			}
-			break;
-			}
-		}
-		break;
-		case sf::Event::MouseButtonReleased:
-		{
-			switch (e.mouseButton.button)
-			{
-			case sf::Mouse::Left:
-			{
-				auto curLeftClick = getMouseCoord();
-				if (!movedSinceLeftClick)
-					addPoint(curLeftClick);
-			}
-			break;
-			case sf::Mouse::Right:
-			{
-				circleMovingIndex = -1;
-			}
-			break;
-			}
-		}
-		break;
-		}
-	}
+	voronoiInfo->update(robotCoords);
 }
 
 void PreviewVoronoi::drawUIImpl()
 {
-	ImGui::Checkbox("Voronoi", &drawVoronoi);
-	ColorPicker3U32("Line Color", lineColor, 0);
-	ImGui::Checkbox("Robots", &drawRobots);
-	ImGui::Checkbox("Centers", &drawCenters);
-	ImGui::Checkbox("Targets", &drawTargets);
-	ImGui::Checkbox("Highlight Hovered Robot", &highlightHoveredRobot);
-	ImGui::Checkbox("Highlight Hovered Cell", &highlightHoveredCell);
-	static constexpr float
-		MIN_R = .5,
-		MAX_R = 32;
-	if (ImGui::SliderFloat("Radius", &viewerBase.radius, MIN_R, MAX_R))
+	if (ImGui::CollapsingHeader("Rendering"))
 	{
-		for (size_t i = 0, lim = robotCoords.size(); i != lim; i++)
-			robotRadius[i] = robotRadiusOffs[i] * viewerBase.radius;
+		ImGui::Checkbox("Voronoi", &drawVoronoi);
+		ImGui::Checkbox("Robots##1", &drawRobots);
+		ImGui::Checkbox("Centers", &drawCenters);
+		ImGui::Checkbox("Targets", &drawTargets);
+
+		ColorPicker3U32("Line", lineColor);
+		ColorPicker3U32("Robots", robotColor);
+
+		if (ImGui::CollapsingHeader("Highlight Hovered"))
+		{
+			ImGui::Checkbox("Robot", &highlightHoveredRobot);
+			ImGui::Checkbox("Cell", &highlightHoveredCell);
+		}
 	}
-	if (ImGui::Button("Clear"))
-		clear();
-	if (!navigator)
-		if (ImGui::Button("Navigator"))
-			MakeUniquePtr(navigator, *this);
-	if (navigator)
+	if (ImGui::CollapsingHeader("Robots"))
 	{
-		bool opened = true;
-		ImGui::Begin("Navigator", &opened);
-		if (opened)
-			navigator->drawUI();
+		static constexpr float
+			MIN_R = .5,
+			MAX_R = 32;
+		if (ImGui::SliderFloat("Radius Multiplier", &viewerBase.radius, MIN_R, MAX_R))
+		{
+			for (size_t i = 0, lim = robotCoords.size(); i != lim; i++)
+				robotRadius[i] = robotRadiusOffs[i] * viewerBase.radius;
+		}
+		if (!robotCoords.empty())
+			if (ImGui::Button("Clear"))
+				clear();
+	}
+	if (ImGui::CollapsingHeader("Navigator"))
+	{
+		if (ImGui::SliderFloat("Speed", &speed, .01f, 200.f))
+			recalculateMaxStep();
+
+		if (running)
+		{
+			if (ImGui::Button("Pause"))
+				running = false;
+		}
 		else
-			navigator.reset();
-		ImGui::End();
+		{
+			if (ImGui::Button("Resume"))
+			{
+				running = true;
+				clk.restart();
+			}
+		}
+		ImGui::Checkbox("Recalculate", &recalculate);
+		if (running)
+		{
+			dt += clk.restart().asSeconds();
+			if (dt >= tickOff)
+			{
+				dt -= tickOff;
+				tick();
+			}
+		}
 	}
 }
 
-void PreviewVoronoi::changeRadius(float m)
+void PreviewVoronoi::onAdd(float)
 {
-	static constexpr float DELTA = 1.f;
-	auto& cur = robotRadiusOffs[circleHovered];
-	cur += DELTA * dt * m;
-	cur = std::clamp(cur, MIN_FRAC, MAX_FRAC);
-	robotRadius[circleHovered] = cur * viewerBase.radius;
+	recalculateVoronoi();
 }
 
-void PreviewVoronoi::addPoint(const sf::Vector2f& coord)
+void PreviewVoronoi::onDelete(float)
 {
-	robotCoords.emplace_back(coord.x, coord.y);
-	robotRadiusOffs.emplace_back(1.f);
-	robotRadius.emplace_back(viewerBase.radius);
+	recalculateVoronoi();
+}
+
+void PreviewVoronoi::onMove()
+{
 	recalculateVoronoi();
 }
 
 PreviewVoronoi::PreviewVoronoi(ViewerBase& viewerBase) :
-	Previewer(viewerBase),
-	drawRobots(true),
+	CommonEditor(viewerBase),
 	lineColor(sf::Color::White),
-	circleMovingIndex(-1),
 	drawVoronoi(true),
+	drawRobots(true),
 	drawCenters(true),
 	drawTargets(true),
 	highlightHoveredRobot(true),
 	highlightHoveredCell(false),
-	circleHovered(-1),
-	movedSinceLeftClick(false),
-	voronoiInfo(viewerBase.accessImgViewer())
-{
-	auto& circle = viewerBase.circle;
-	circle.setOutlineColor(sf::Color::Green);
-}
-
-PreviewVoronoi::NavigatorInfo::NavigatorInfo(PreviewVoronoi& previewer) :
-	previewer(previewer),
+	mt(SEED),
 	running(false),
-	recalculate(false),
+	recalculate(true),
 	speed(5.f),
 	tickOff(1.f / DEFAULT_TICKS_PER_SECOND),
-	dt(0.f)
+	dt(0)
 {
+	MakeUniquePtr(voronoiInfo, viewerBase);
+	auto& circle = viewerBase.circle;
+	circle.setOutlineColor(sf::Color::Green);
+	recalculateMaxStep();
 }
 
-void PreviewVoronoi::NavigatorInfo::drawUI()
+void PreviewVoronoi::tick()
 {
-	ImGui::SliderFloat("Speed", &speed, .01f, 20.f);
-	if (running)
-	{
-		if (ImGui::Button("Pause"))
-			running = false;
-	}
-	else
-	{
-		if (ImGui::Button("Resume"))
-		{
-			running = true;
-			clk.restart();
-		}
-	}
-	ImGui::Checkbox("Recalculate", &recalculate);
-	if (running)
-	{
-		dt += clk.restart().asSeconds();
-		if (dt >= tickOff)
-		{
-			dt -= tickOff;
-			tick();
-		}
-	}
-}
-
-void PreviewVoronoi::NavigatorInfo::tick()
-{
-	auto& coords = previewer.robotCoords;
+	auto& coords = robotCoords;
+	const auto& radii = robotRadius;
 	const auto n = coords.size();
+	std::vector<vec2d> vDeslocamento(n);
 	for (size_t i = 0; i != n; i++)
 	{
-		const auto& target = previewer.voronoiInfo.targets[i];
-		auto& coord = coords[i];
-		if (auto off = target - coord)
+		const auto& target = voronoiInfo->targets[i];
+		const auto& coord = coords[i];
+		const auto& r1 = radii[i];
+		auto& tot = vDeslocamento[i];
+		if (auto off = target - coord) // se ainda não convergiu 100%
 		{
 			const auto lenLeft = length(off);
-			const auto walk = std::min(lenLeft, static_cast<double>(tickOff * speed));
-			coord += walk / lenLeft * off;
+			const auto walk = std::min(lenLeft, maxStep);
+
+			tot += walk / lenLeft * off; // atração para o centro de gravidade da célula
+
+			// forças de repulsão
+			static constexpr double D = 50; // raio de observação (além do próprio raio)
+			for (size_t j = 0; j != n; j++)
+			{
+				if (j == i)
+					continue;
+				const auto& cOther = coords[j];
+				auto rng = [&]
+				{
+					// se estiverem na mesma coordenada, vamos escolher um vetor aleatório de repulsão
+					std::uniform_real_distribution d(0., 2 * std::numbers::pi);
+					auto angle = d(mt);
+					vec2d rep{ cos(angle), sin(angle) };
+					tot += rep * maxStep;
+				};
+				if (auto dTot = coord - cOther)
+				{
+					auto d = length(dTot);
+					d -= r1 + radii[j];
+					if (d < D)
+					{
+						if (d == 0) // em caso de floating point inaccuracy
+							rng();
+						else
+						{
+							auto normed = dTot / abs(d);
+							if (d < 0)
+								tot = maxStep * normed;
+							else
+							{
+								auto f = 1 / (300*d);
+								f = std::min(f, maxStep * 1.1);
+								tot += f * normed;
+							}
+						}
+					}
+				}
+				else
+				{
+					rng();
+				}
+			}
 		}
 	}
+	for (size_t i = 0; i != n; i++)
+		coords[i] += vDeslocamento[i];
 	if (recalculate)
-		previewer.recalculateVoronoi();
+		recalculateVoronoi();
+}
+
+void PreviewVoronoi::recalculateMaxStep()
+{
+	maxStep = static_cast<double>(tickOff * speed);
 }

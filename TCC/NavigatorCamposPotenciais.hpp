@@ -24,9 +24,9 @@ class NavigatorCamposPotenciais : public NavigatorInterface
 	bool drawRadius;
 	float maxRadius;
 
-	void addAgent(const Agent2D& agent) override;
+	void addAgent(const Agent& agent) override;
 	void tick() override;
-	void drawUI() override;
+	void drawUIExtra() override;
 	void draw() override;
 	void updateTimeStep(float timeStep) override;
 

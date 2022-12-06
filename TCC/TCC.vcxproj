@@ -183,19 +183,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Agent.cpp" />
     <ClCompile Include="Application.cpp" />
-    <ClCompile Include="DrawUtil.cpp" />
+    <ClCompile Include="CellAreaCalculator.cpp" />
+    <ClCompile Include="CGALStuff.cpp" />
+    <ClCompile Include="CommonEditor.cpp" />
+    <ClCompile Include="ElemSelected.cpp" />
     <ClCompile Include="FileExplorer.cpp" />
-    <ClCompile Include="Goal.cpp" />
     <ClCompile Include="Hopcroft.cpp" />
-    <ClCompile Include="Hungarian.cpp" />
     <ClCompile Include="ImgViewer.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="NavigatorCamposPotenciais.cpp" />
     <ClCompile Include="NavigatorInterface.cpp" />
     <ClCompile Include="NavigatorRVO2.cpp" />
-    <ClCompile Include="NavigatorVoronoi.cpp" />
+    <ClCompile Include="nfd_win.cpp" />
     <ClCompile Include="OpenCVSFML.cpp" />
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -203,6 +203,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="PointSelection.cpp" />
     <ClCompile Include="Previewer.cpp" />
     <ClCompile Include="PreviewHex.cpp" />
     <ClCompile Include="PreviewPolygonize.cpp" />
@@ -218,16 +219,19 @@
     <ClCompile Include="VoronoiInfo.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Agent.hpp" />
     <ClInclude Include="Application.hpp" />
+    <ClInclude Include="CellAreaCalculator.hpp" />
+    <ClInclude Include="CGALStuff.hpp" />
+    <ClInclude Include="CommonEditor.hpp" />
     <ClInclude Include="ElemSelected.hpp" />
     <ClInclude Include="FileExplorer.hpp" />
     <ClInclude Include="Hungarian.hpp" />
     <ClInclude Include="ImgViewer.hpp" />
     <ClInclude Include="jc_voronoi.h" />
     <ClInclude Include="NavigatorCamposPotenciais.hpp" />
-    <ClInclude Include="NavigatorVoronoi.hpp" />
+    <ClInclude Include="nfd.h" />
     <ClInclude Include="OpenCVSFML.hpp" />
+    <ClInclude Include="PointSelection.hpp" />
     <ClInclude Include="Previewer.hpp" />
     <ClInclude Include="PreviewHex.hpp" />
     <ClInclude Include="PreviewPolygonize.hpp" />
@@ -236,8 +240,6 @@
     <ClInclude Include="Sequencer.hpp" />
     <ClInclude Include="vec2.hpp" />
     <ClInclude Include="DefineUtils.hpp" />
-    <ClInclude Include="DrawUtil.hpp" />
-    <ClInclude Include="Goal.hpp" />
     <ClInclude Include="Hopcroft.hpp" />
     <ClInclude Include="Logger.hpp" />
     <ClInclude Include="Pch.hpp" />

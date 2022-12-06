@@ -1,14 +1,16 @@
 #pragma once
-#include "Agent.hpp"
-#include "Goal.hpp"
+#include "ElemSelected.hpp"
 
 class NavigatorInterface
 {
 public:
+	sf::Color trajectoryColor;
+	int tickRate;
 	NavigatorInterface();
-	virtual void addAgent(const Agent2D& agent) = 0;
+	virtual void addAgent(const Agent& agent) = 0;
 	virtual void tick() = 0;
-	virtual void drawUI() = 0;
+	virtual void drawUIExtra() = 0;
+	bool drawUI();
 	virtual void draw() = 0;
 	virtual void updateTimeStep(float timeStep) = 0;
 	virtual std::vector<vec2d> getAgentPositions() = 0;

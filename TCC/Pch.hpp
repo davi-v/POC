@@ -86,3 +86,5 @@ using boost::polygon::high;
 #include <CGAL/Polyline_simplification_2/simplify.h>
 #include <CGAL/Polyline_simplification_2/Squared_distance_cost.h>
 #include <CGAL/IO/WKT.h>
+
+#include "nfd.h"

@@ -1,22 +1,13 @@
 #include "Pch.hpp"
 #include "Simulator2D.hpp"
 
-#include "DrawUtil.hpp"
 #include "NavigatorRVO2.hpp"
 #include "NavigatorCamposPotenciais.hpp"
-#include "NavigatorVoronoi.hpp"
 #include "Hopcroft.hpp"
 #include "Utilities.hpp"
 #include "FileExplorer.hpp"
 #include "Hungarian.hpp"
 #include "Application.hpp"
-
-const sf::Color Simulator2D::DEFAULT_GOAL_COLOR = sf::Color::Green;
-
-void Simulator2D::addMessage(const char* msg)
-{
-	warnings.emplace_back(msg, globalClock.getElapsedTime());
-}
 
 bool Simulator2D::loadAgentsAndGoals(const std::wstring& path)
 {
@@ -42,13 +33,13 @@ bool Simulator2D::loadAgentsAndGoals(const std::wstring& path)
 		nextSize = nAgents * sizeof(vec2d);
 		if (bytesLeft < nextSize)
 			return retError();
-		agents.resize(nAgents);
+
+		agents.clear();
 		for (size_t i = 0; i != nAgents; i++)
 		{
 			vec2d coord;
 			FileRead(f, coord);
-			auto& agent = agents[i];
-			agent = std::make_unique<Agent2D>(coord, r);
+			addAgent(coord);
 		}
 		bytesLeft -= nextSize;
 
@@ -58,13 +49,13 @@ bool Simulator2D::loadAgentsAndGoals(const std::wstring& path)
 			return retError();
 		if (nAgents == 0 && div == 0)
 			return retError(); // não aceite arquivo sem nenhum vértice
-		goals.resize(div);
+
+		goals.clear();
 		for (size_t i = 0; i != div; i++)
 		{
 			vec2d coord;
 			FileRead(f, coord);
-			auto& goal = goals[i];
-			goal = std::make_unique<Goal>(coord, r);
+			addGoal(coord);
 		}
 
 		return true;
@@ -78,8 +69,10 @@ void Simulator2D::saveAgentsAndGoals(const std::wstring& path)
 	{
 		auto nAgents = agents.size();
 		FileAppend(f, nAgents);
-		for (const auto& agent : agents) FileAppend(f, agent->coord);
-		for (const auto& goal : goals) FileAppend(f, goal->coord);
+		for (const auto& agent : agents)
+			FileAppend(f, agent.coord);
+		for (const auto& goal : goals)
+			FileAppend(f, goal.coord);
 	}
 }
 
@@ -96,41 +89,39 @@ vec2d Simulator2D::getCoordDouble(int x, int y)
 	return coordDouble;
 }
 
-void Simulator2D::addEdge(Agent2D& agent, const Goal& goal)
+void Simulator2D::addEdge(Agent& agent, Goal& goal)
 {
-	agent.updateGoal(goal);
+	agent.par = &goal;
+	goal.par = &agent;
 }
 
-Simulator2D::Simulator2D(Application& app, float r) :
-	app(app),
-	editModeType(EditModeType::Free),
-	r(r),
+Simulator2D::Simulator2D(Application* app, float radius) :
+	app(*app),
+	radius(radius),
+	elemHovered(nullptr),
 	usingOutline(false),
+	metricBasedAllocation(true),
 	curNavigator(NavigatorCheckbox::rvo2),
-	leftClickAction(LeftClickAction::Select),
-	tickRate(DEFAULT_TICKS_PER_SECOND),
-	usingDistancesSquared(true),
+	addAction(AddAction::Agent),
+	useDistancesSquared(true),
 	distanceFunctionUsingType(DistanceFunctionsEnum::SumOfEachEdgeDistanceSquared),
 	distanceFuncUsingCallback(DISTANCE_FUNCTIONS[static_cast<DistanceFunctionsUnderlyingType>(distanceFunctionUsingType)]),
 	metric(Metric::MinMaxEdgeThenSum),
 	currentMaxEdge(0),
 	currentTotalSumOfEachEdgeDistance(0),
 	currentTotalSumOfEachEdgeDistanceSquared(0),
-	variance(0)
+	variance(0),
+	colorEdge(sf::Color::White),
+	colorEdgeMaxDistance(sf::Color::Yellow),
+	goalColor(sf::Color::Green),
+	defaultAgentColor(sf::Color::Blue)
 {
-	font.loadFromFile("segoeui.ttf");
-
-	circle.setOutlineColor(sf::Color::White);
-
-	textPopUpMessages.setFont(font);
-	textPopUpMessages.setFillColor(sf::Color::Red);
-
-	leftClickInterface = std::make_unique<SelectAction>(*this);
+	eventInterface = std::make_unique<AddAgentAction>(*this);
 }
 
 void Simulator2D::addAgent(const vec2d& c)
 {
-	agents.emplace_back(std::make_unique<Agent2D>(c, r));
+	agents.emplace_back(c, radius);
 }
 
 void Simulator2D::addAgent(float x, float y)
@@ -140,7 +131,7 @@ void Simulator2D::addAgent(float x, float y)
 
 void Simulator2D::addGoal(const vec2d& c)
 {
-	goals.emplace_back(std::make_unique<Goal>(c, r));
+	goals.emplace_back(c, radius);
 }
 
 void Simulator2D::addAgent(const sf::Vector2f& c)
@@ -151,15 +142,23 @@ void Simulator2D::addAgent(const sf::Vector2f& c)
 bool Simulator2D::drawUI()
 {
 	bool opened = true;
-	ImGui::Begin("Navigator", &opened);
+	ImGui::Begin("Editor", &opened);
 
-	ImGui::Text("Frame (ms): %.3f (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+	//ImGui::Text("Frame (ms): %.3f (%.1f FPS)", 1000 / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
 	{
 		std::string str;
 		str += "Agents: " + std::to_string(agents.size());
 		str += "\nGoals: " + std::to_string(goals.size());
 		ImGui::Text(str.c_str());
+	}
+
+	if (ImGui::CollapsingHeader("Colors"))
+	{
+		ColorPicker3U32("Agent", defaultAgentColor);
+		ColorPicker3U32("Goal", goalColor);
+		ColorPicker3U32("Edge", colorEdge);
+		ColorPicker3U32("Biggest Edge", colorEdgeMaxDistance);
 	}
 
 	if (ImGui::Checkbox("Outline Borders", &usingOutline))
@@ -181,70 +180,45 @@ bool Simulator2D::drawUI()
 			updateOutlineThickness();
 	}
 
-	if (editModeType != EditModeType::Navigation) // navigation receives its own copy and is responsible for its own rendering
+	if (!nav)
 	{
-		drawAgents(true);
-		drawGoals();
+		if (ImGui::Button("Navigator"))
+			tryCreateSelectedNavigator();
 	}
 
-	static constexpr const char* MODE_LABELS[] = {
-			"Free Edit",
-			"Metric Based",
-			"Navigator"
-	};
-	if (ImGui::Combo("Mode", reinterpret_cast<int*>(&editModeType), MODE_LABELS, IM_ARRAYSIZE(MODE_LABELS)))
-	{
-		switch (editModeType)
-		{
-		case EditModeType::Free:
-		{
-		}
-		break;
-		case EditModeType::Metric:
-		{
+	if (ImGui::Checkbox("Metric Based Allocation", &metricBasedAllocation))
+		if (metricBasedAllocation)
 			updateGraphEdges();
-			if (leftClickAction == LeftClickAction::AddEdge)
-				leftClickAction = LeftClickAction::Select;
-		}
-		break;
-		case EditModeType::Navigation:
-		{
-			createSelectedNavigator();
-		}
-		break;
-		}
-	}
 
-	auto drawEditMenu = [&](int nTypes)
+	if (!nav)
 	{
-		static constexpr const char* LEFT_CLICK_ACTION[] = {
-		"Drag / Delete",
-		"Place Agent",
-		"Place Goal",
-		"Add Edge"
+		int amount;
+		if (hasAtLeast1Edge())
+			amount = 4; // also give option to add edge
+		else
+			amount = 3;
+		static constexpr const char* PLACE_ACTION[] = {
+		"Agent",
+		"Goal",
+		"Edge"
 		};
-		if (ImGui::Combo("Left Click Action", reinterpret_cast<int*>(&leftClickAction), LEFT_CLICK_ACTION, nTypes))
+		if (ImGui::Combo("Add", reinterpret_cast<int*>(&addAction), PLACE_ACTION, sizeof(PLACE_ACTION) / sizeof(*PLACE_ACTION)))
 		{
-			switch (leftClickAction)
+			switch (addAction)
 			{
-			case LeftClickAction::Select:
+			case AddAction::Agent:
 			{
-				leftClickInterface = std::make_unique<SelectAction>(*this);
+				eventInterface = std::make_unique<AddAgentAction>(*this);
 			}
 			break;
-			case LeftClickAction::PlaceAgent:
+			case AddAction::Goal:
 			{
-				leftClickInterface = std::make_unique<AddAgentAction>(*this);
+				eventInterface = std::make_unique<AddGoalAction>(*this);
 			}
 			break;
-			case LeftClickAction::PlaceGoal:
+			case AddAction::Edge:
 			{
-				leftClickInterface = std::make_unique<AddGoalAction>(*this);
-			}
-			break;
-			case LeftClickAction::AddEdge:
-			{
-				leftClickInterface = std::make_unique<AddEdgeAction>(*this);
+				eventInterface = std::make_unique<AddEdgeAction>(*this);
 			}
 			break;
 			}
@@ -253,40 +227,15 @@ bool Simulator2D::drawUI()
 		if (!agents.empty() || !goals.empty())
 			if (ImGui::Button("Clear"))
 				Clear(agents, goals);
-	};
-
-	auto showFileActions = [&]
-	{
-		if (canSaveFile() && ImGui::Button("Save File"))
-			saveFile();
-		if (ImGui::Button("Open File"))
-			tryOpenFile();
-	};
-
-	if (editModeType != EditModeType::Navigation)
-		navigator.reset();
-
-	switch (editModeType)
-	{
-	case EditModeType::Free:
-	{
-		int amount;
-		if (hasAtLeast1Edge())
-			amount = 4; // also give option to add edge
-		else
-			amount = 3;
-		drawEditMenu(amount);
-
-		showFileActions();
 	}
-	break;
-	case EditModeType::Metric:
+
+	if (metricBasedAllocation)
 	{
 		if (hasAtLeast1Edge() && ImGui::CollapsingHeader("Metrics"))
 		{
 			static constexpr const char* METRIC_MESSAGES[] = {
-				"minimize biggest edge",
 				"minimize total sum of edges",
+				"minimize biggest edge",
 				"minimize biggest edge then minimize total sum of edges"
 			};
 			if (ImGui::Combo("metric", reinterpret_cast<int*>(&metric), METRIC_MESSAGES, IM_ARRAYSIZE(METRIC_MESSAGES)))
@@ -294,7 +243,7 @@ bool Simulator2D::drawUI()
 
 			// na métrica de apenas minimizar a maior aresta, não faz diferença se a distância considerada foi quadrática ou não
 			if (metric != Metric::MinimizeBiggestEdge)
-				if (ImGui::Checkbox("distances squared", &usingDistancesSquared))
+				if (ImGui::Checkbox("distances squared", &useDistancesSquared))
 				{
 					updateDistanceSquaredVars();
 					updateGraphEdges(); // já sabemos que o grafo tem pelo menos 1 aresta
@@ -307,112 +256,110 @@ bool Simulator2D::drawUI()
 			str += "\nvariance: " + std::to_string(variance);
 			ImGui::Text(str.c_str());
 		}
-		showFileActions();
 	}
-	break;
-	case EditModeType::Navigation:
+
+	if (nav)
 	{
 		static constexpr const char* SIMULATION_LOGIC_LABELS[] = {
-		"rvo2",
-		"Campos Potenciais"
+				"rvo2",
+				"Campos Potenciais"
 		};
 		if (ImGui::Combo("Navigator", reinterpret_cast<int*>(&curNavigator), SIMULATION_LOGIC_LABELS, IM_ARRAYSIZE(SIMULATION_LOGIC_LABELS)))
-			createSelectedNavigator();
+			tryCreateSelectedNavigator();
+		
+		if (!nav->drawUI())
+			nav.reset();
 
-		if (ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 1, 256, "%d", ImGuiSliderFlags_AlwaysClamp))
-			navigator->updateTimeStep(1.f / tickRate);
-		ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
-
-		if (navigator->running)
-		{
-			if (ImGui::Button("Pause"))
-				navigator->running = false;
-		}
-		else
-		{
-			if (ImGui::Button("Play"))
-				navigator->startNavigating();
-		}
-
-		ImGui::Checkbox("Draw Destination Lines", &navigator->drawDestinationLines);
 	}
-	break;
+	else
+	{
+		const auto prvRadius = radius;
+		if (ImGui::SliderFloat("Radius", &radius, 0.5f, 100.f))
+		{
+			const auto m = radius / prvRadius;
+			for (auto& agent : agents)
+				agent.radius *= m;
+		}
+
+		if (canSaveFile() && ImGui::MenuItem("Save File"))
+			saveFile();
+		if (ImGui::MenuItem("Open File"))
+			tryOpenFile();
 	}
 
-	if (navigator)
-		navigator->drawUI();
-
-	leftClickInterface->draw();
 	ImGui::End();
 	return opened;
 }
 
 void Simulator2D::draw()
 {
-	if (navigator)
+	if (nav)
 	{
-		navigator->loopUpdate();
-		navigator->draw();
+		nav->loopUpdate();
+		nav->draw();
 	}
 	else
 	{
-		auto& w = app.window;
 		for (const auto& agent : agents)
 		{
-			sf::Vector2f circleCenter{
-				static_cast<float>(agent->coord.x),
-				static_cast<float>(agent->coord.y)
-			};
-			circle.setPosition(circleCenter);
-			circle.setFillColor(app.viewerBase->getColor(circleCenter));
-			PrepareCircleRadius(circle, r);
-			w.draw(circle);
+			if (&agent == elemHovered)
+				circle.setFillColor(sf::Color::Yellow);
+			else
+				circle.setFillColor(getColor(agent.coord));
+			PrepareCircleRadius(circle, static_cast<float>(agent.radius));
+			circle.setPosition(agent.coord);
+			app.window.draw(circle);
+			if (const auto& goalPtr = agent.par)
+			{
+				const auto& goal = *goalPtr;
+				sf::Color color;
+				if (distance2(agent, goal) == currentMaxEdgeSquared)
+					color = colorEdgeMaxDistance;
+				else
+					color = colorEdge;
+				sf::Vertex vertices[2]
+				{
+					sf::Vertex{ agent.coord, color },
+					sf::Vertex{ goal.coord, color },
+				};
+				app.window.draw(vertices, 2, sf::Lines);
+			}
 		}
-	}
-
-	// draw UI in screen space
-	sf::View curView = app.window.getView(); // to restore later
-	sf::View orgView = app.window.getDefaultView();
-	app.window.setView(orgView);
-
-	// pop-up messages
-	std::string str;
-	for (auto it = warnings.begin(); it != warnings.end(); )
-	{
-		auto& msg = it->first;
-		auto& ts = it->second;
-		auto now = globalClock.getElapsedTime();
-		if ((now - ts).asSeconds() > WARNING_DURATION)
-			it = warnings.erase(it);
-		else
+	
+		for (const auto& goal : goals)
 		{
-			str += msg;
-			str += '\n';
-			it++;
+			PrepareCircleRadius(circle, goal.radius);
+			if (&goal == elemHovered)
+				circle.setFillColor(sf::Color::Yellow);
+			else
+				circle.setFillColor(goalColor);
+			circle.setPosition(goal.coord);
+			app.window.draw(circle);
 		}
 	}
-	textPopUpMessages.setString(str);
-	auto bounds = textPopUpMessages.getLocalBounds();
-	textPopUpMessages.setOrigin(bounds.width * 0.5f, 0);
-	auto [w, h] = app.window.getSize();
-	textPopUpMessages.setPosition(w * 0.5f, 0);
-	app.window.draw(textPopUpMessages);
-
-	app.window.setView(curView); // restore current view
+	eventInterface->draw();
 }
 
-bool Simulator2D::pollEvent(const sf::Event& event)
+void Simulator2D::pollEvent(const sf::Event& event)
 {
 	if (NotHoveringIMGui())
-		if (editModeType == EditModeType::Free)
-			return leftClickInterface->pollEvent(event);
-	return false;
+		if (eventInterface)
+			eventInterface->pollEvent(event);
 }
 
 void Simulator2D::clearAll()
 {
 	Clear(agents, goals);
-	navigator.reset();
+	nav.reset();
+}
+void Simulator2D::recalculateElemHovered(const vec2d& coordDouble)
+{
+	elemHovered = nullptr;
+	if (auto opt = eventInterface->tryGetElementHovered(coordDouble))
+	{
+		std::tie(elemHoveredIt, typeHovered) = *opt;
+		elemHovered = &*elemHoveredIt;
+	}
 }
 
 void Simulator2D::updateOutlineColor()
@@ -422,7 +369,7 @@ void Simulator2D::updateOutlineColor()
 
 void Simulator2D::updateOutlineThickness()
 {
-	circle.setOutlineThickness(-percentageOutline * r);
+	circle.setOutlineThickness(-percentageOutline * radius);
 }
 
 bool Simulator2D::canSaveFile()
@@ -447,13 +394,13 @@ void Simulator2D::tryOpenFile()
 			double sX = 0, sY = 0;
 			for (const auto& agent : agents)
 			{
-				sX += agent->coord.x;
-				sY += agent->coord.y;
+				sX += agent.coord.x;
+				sY += agent.coord.y;
 			}
-			for (const auto& goals : goals)
+			for (const auto& goal : goals)
 			{
-				sX += goals->coord.x;
-				sY += goals->coord.y;
+				sX += goal.coord.x;
+				sY += goal.coord.y;
 			}
 			auto n = agents.size() + goals.size();
 			sX /= n; // se n é 0, loadAgentsAndGoals retornou false e não estaríamos aqui
@@ -467,13 +414,13 @@ void Simulator2D::tryOpenFile()
 			app.window.setView(view);
 		}
 		else
-			addMessage("Error reading file");
+			app.addMessage("Error reading file");
 }
 
 void Simulator2D::updateDistanceSquaredVars()
 {
-	distanceFunctionUsingType = usingDistancesSquared ? DistanceFunctionsEnum::SumOfEachEdgeDistanceSquared : DistanceFunctionsEnum::SumOfEachEdgeDistance;
-	distanceFuncUsingCallback = usingDistancesSquared ? distanceSquaredAgent : distanceAgent;
+	distanceFunctionUsingType = useDistancesSquared ? DistanceFunctionsEnum::SumOfEachEdgeDistanceSquared : DistanceFunctionsEnum::SumOfEachEdgeDistance;
+	distanceFuncUsingCallback = useDistancesSquared ? distance2 : distance1;
 }
 
 bool Simulator2D::hasAtLeast1Edge()
@@ -482,71 +429,50 @@ bool Simulator2D::hasAtLeast1Edge()
 	return agents.size() >= nGoals && nGoals;
 }
 
-void Simulator2D::drawAgent(const Agent2D& agent)
+void Simulator2D::tryUpdateAllocation()
 {
-	circle.setFillColor(agent.color);
-	PrepareCircleRadius(circle, static_cast<float>(agent.radius));
-	circle.setPosition(agent.coord);
-	app.window.draw(circle);
+	if (metricBasedAllocation)
+		updateGraphEdges();
 }
 
-void Simulator2D::drawAgents(bool drawEdgeToGoal)
+sf::Color Simulator2D::getColor(float x, float y) const
 {
-	for (const auto& agent : agents)
-	{
-		drawAgent(*agent);
-		if (drawEdgeToGoal)
-			if (agent->goalPtr)
-			{
-				const auto& goal = *agent->goalPtr;
-
-				sf::Color color;
-				if (distanceSquaredAgent(*agent, goal) == currentMaxEdgeSquared)
-					color = sf::Color::Yellow;
-				else
-					color = sf::Color::White;
-				sf::Vertex vertices[2]
-				{
-					sf::Vertex{ agent->coord, color },
-					sf::Vertex{ goal.coord, color },
-				};
-				app.window.draw(vertices, 2, sf::Lines);
-			}
-	}
+	if (const auto& ptr = app.viewerBase)
+		return ptr->getColor(x, y);
+	return defaultAgentColor;
 }
 
-void Simulator2D::createSelectedNavigator()
+sf::Color Simulator2D::getColor(const sf::Vector2f& v) const
 {
-	switch (curNavigator)
-	{
-	case NavigatorCheckbox::rvo2:
-	{
-		navigator = std::make_unique<NavigatorRVO2>(*this, r * 2 * N_DIAMETERS_SAFER);
-	}
-	break;
-	case NavigatorCheckbox::CamposPotenciais:
-	{
-		navigator = std::make_unique<NavigatorCamposPotenciais>(*this, r * 6);
-	}
-	break;
-	}
+	return getColor(v.x, v.y);
 }
 
-void Simulator2D::drawGoals()
+void Simulator2D::tryCreateSelectedNavigator()
 {
-	circle.setFillColor(DEFAULT_GOAL_COLOR);
-	PrepareCircleRadius(circle, r);
-	for (const auto& goal : goals)
+	if (agents.empty())
+		app.addMessage("Não há agentes");
+	else
 	{
-		circle.setPosition(goal->coord);
-		app.window.draw(circle);
+		switch (curNavigator)
+		{
+		case NavigatorCheckbox::rvo2:
+		{
+			nav = std::make_unique<NavigatorRVO2>(*this);
+		}
+		break;
+		case NavigatorCheckbox::CamposPotenciais:
+		{
+			nav = std::make_unique<NavigatorCamposPotenciais>(*this, radius * 6);
+		}
+		break;
+		}
 	}
 }
 
 void Simulator2D::updateGraphEdges()
 {
 	for (auto& agent : agents)
-		agent->goalPtr = nullptr;
+		agent.par = nullptr;
 
 	if (goals.empty() || agents.size() < goals.size())
 		return;
@@ -555,21 +481,28 @@ void Simulator2D::updateGraphEdges()
 	{
 	case Metric::MinimizeTotalSumOfEdges:
 	{
-		auto costMatrix = getHungarianCostMatrix();
+		const auto costMatrix = getHungarianCostMatrix();
 		updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(costMatrix, true);
 	}
 	break;
 	case Metric::MinimizeBiggestEdge:
 	{
 		for (auto& agent : agents)
-			agent->goalPtr = nullptr;
-		for (auto& [agentIndex, goalIndex] : getEdgesMinimizingBiggestEdgeAndUpdateInternalVariables())
-			agents[agentIndex]->updateGoal(*goals[goalIndex]);
+			agent.par = nullptr;
+		auto edges = updateInternalVariablesMetricEdgesMinimizingBiggestEdge();
+		for (const auto& [agentIdx, goalIdx] : edges)
+		{
+			auto itAgent = agents.begin();
+			auto itGoal = goals.begin();
+			std::advance(itAgent, agentIdx);
+			std::advance(itGoal, goalIdx);
+			addEdge(*itAgent, *itGoal);
+		}
 	}
 	break;
 	case Metric::MinMaxEdgeThenSum:
 	{
-		getEdgesMinimizingBiggestEdgeAndUpdateInternalVariables();
+		updateInternalVariablesMetricEdgesMinimizingBiggestEdge();
 
 		double limCost;
 		if (distanceFunctionUsingType == DistanceFunctionsEnum::SumOfEachEdgeDistance)
@@ -594,34 +527,19 @@ void Simulator2D::updateGraphEdges()
 
 std::vector<vec2d> Simulator2D::getAgentsCoordinatesFromNavigator()
 {
-	return navigator->getAgentPositions();
+	return nav->getAgentPositions();
 }
 
 void Simulator2D::recreateNavigatorAndPlay()
 {
-	createSelectedNavigator();
-	navigator->startNavigating();
+	tryCreateSelectedNavigator();
+	nav->startNavigating();
 }
 
-void Simulator2D::updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(CostMatrix& costMatrix, bool needsToUpdateMaxEdge)
+void Simulator2D::updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(const CostMatrix& costMatrix, bool needsToUpdateMaxEdge)
 {
-	std::vector<int> assignment;
-	double cost;
-	//cost = HungarianAlgorithm{}.Solve(costMatrix, assignment);
-	{
-		auto n = static_cast<int>(costMatrix.size());
-		auto e = n * n;
-		std::vector<WeightedBipartiteEdge> edges(e);
-		size_t cnt = 0;
-		for (int i = 0; i != n; i++)
-			for (int j = 0; j != n; j++, cnt++)
-				edges[cnt] = { i, j, costMatrix[i][j] };
-		assignment = hungarianMinimumWeightPerfectMatching(n, edges);
-
-		cost = 0;
-		for (size_t i = 0; i != n; i++)
-			cost += costMatrix[i][assignment[i]];
-	}
+	Hungarian<double> h(costMatrix);
+	auto [cost, assignment] = h.assignment();
 
 	std::vector<double> distances;
 
@@ -643,63 +561,77 @@ void Simulator2D::updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(Co
 		nAgents = agents.size(),
 		nGoals = goals.size();
 
+	auto fillIts = [&](auto& c)
+	{
+		const auto n = c.size();
+		std::vector<std::list<ElementInteractable>::iterator> ret(n);
+		auto it = c.begin();
+		for (size_t i = 0; i != n; )
+			ret[i++] = it++;
+		return ret;
+	};
+	auto agentsIts = fillIts(agents);
+	auto goalsIts = fillIts(goals);
+
 	for (size_t agentIndex = 0; agentIndex != nAgents; agentIndex++)
 	{
-		auto& agent = agents[agentIndex];
+		auto& agent = *agentsIts[agentIndex];
 		auto& goalIndex = assignment[agentIndex];
 		if (goalIndex < nGoals) // agente foi escolhido para ir a algum goal
 		{
-			agent->updateGoal(*goals[goalIndex]);
+			auto& goal = *goalsIts[goalIndex];
+			addEdge(agent, goal);
 			const auto& costInMatrix = costMatrix[agentIndex][goalIndex];
 			double edgeCostSquared;
-			if (distanceFunctionUsingType == DistanceFunctionsEnum::SumOfEachEdgeDistance)
+			double edgeCost;
+			if (useDistancesSquared)
 			{
-				distances.emplace_back(costInMatrix);
-				edgeCostSquared = distanceSquaredAgent(*agents[agentIndex], *goals[goalIndex]); // temos que calcular do mesmo jeito em todos os lugares para evitar erros de ponto flutuante. costInMatrix foi calculado usando sqrt. Fazer ao quadrado poder dar resultado diferente de fazer usando o dot product que já sai ao quadrado
-				currentTotalSumOfEachEdgeDistanceSquared += edgeCostSquared;
+				edgeCost = sqrt(costInMatrix);
+				edgeCostSquared = costInMatrix;
+				currentTotalSumOfEachEdgeDistance += edgeCost;
 			}
 			else
 			{
-				edgeCostSquared = costInMatrix;
-
-				auto edgeCost = sqrt(costInMatrix);
-				distances.emplace_back(edgeCost);
-				currentTotalSumOfEachEdgeDistance += edgeCost;
+				edgeCost = costInMatrix;
+				edgeCostSquared = distance2(agent, goal); // temos que calcular do mesmo jeito em todos os lugares para evitar erros de ponto flutuante. costInMatrix foi calculado usando sqrt. Fazer ao quadrado poder dar resultado diferente de fazer usando o dot product que já sai ao quadrado
+				currentTotalSumOfEachEdgeDistanceSquared += edgeCostSquared;
 			}
+			distances.emplace_back(edgeCost);
 
 			// here, edgeCost is the cost of the edge not squared
 			if (needsToUpdateMaxEdge)
 			{
-				if (costInMatrix > currentMaxEdge)
+				if (edgeCost > currentMaxEdge)
 				{
-					currentMaxEdge = costInMatrix;
+					currentMaxEdge = edgeCost;
 					currentMaxEdgeSquared = edgeCostSquared;
 				}
 			}
 		}
 		else
-			agent->goalPtr = nullptr;
+			agent.par = nullptr;
 	}
 
 	variance = 0;
-	auto mean = currentTotalSumOfEachEdgeDistance / nGoals;
+	const auto mean = currentTotalSumOfEachEdgeDistance / nGoals;
 	for (const auto& d : distances)
 		variance += square(d - mean);
 	variance /= nGoals;
 }
 
-CostMatrix Simulator2D::getHungarianCostMatrix()
+CostMatrix Simulator2D::getHungarianCostMatrix() const
 {
 	auto
 		nAgents = agents.size(),
 		nGoals = goals.size();
-
-	auto costMatrix = std::vector<std::vector<double>>(nAgents, std::vector<double>(nAgents));
+	auto costMatrix = std::vector(nAgents, std::vector<double>(nAgents));
+	auto itAgent = agents.begin();
 	for (size_t agentIndex = 0; agentIndex != nAgents; agentIndex++)
 	{
-		auto& agent = agents[agentIndex];
+		auto& agent = *itAgent++;
+		auto itGoal = goals.begin();
 		for (size_t goalIndex = 0; goalIndex != nGoals; goalIndex++)
-			costMatrix[agentIndex][goalIndex] = distanceFuncUsingCallback(*agent, *goals[goalIndex]);
+			costMatrix[agentIndex][goalIndex] = distanceFuncUsingCallback(agent, *itGoal++);
 		for (size_t goalIndex = nGoals; goalIndex != nAgents; goalIndex++)
 			costMatrix[agentIndex][goalIndex] = 0;
 	}
@@ -707,19 +639,30 @@ CostMatrix Simulator2D::getHungarianCostMatrix()
 	return costMatrix;
 }
 
-Edges Simulator2D::getEdgesMinimizingBiggestEdgeAndUpdateInternalVariables()
+Edges Simulator2D::updateInternalVariablesMetricEdgesMinimizingBiggestEdge()
 {
 	auto
 		nAgents = agents.size(),
 		nGoals = goals.size();
 
 	auto costMatrix = std::vector<std::vector<double>>(nAgents, std::vector<double>(nGoals));
-	std::set<double> uniqueEdgeCosts;
-	for (size_t agentIndex = 0; agentIndex != nAgents; agentIndex++)
-		for (size_t goalIndex = 0; goalIndex != nGoals; goalIndex++)
-			uniqueEdgeCosts.emplace(costMatrix[agentIndex][goalIndex] = distanceSquaredAgent(*agents[agentIndex], *goals[goalIndex])); // minimizar a maior distância / minimizar a maior distância ao quadrado dá na mesma. Mas o último é mais barato
-	std::vector<double> sortedEdgeCosts(uniqueEdgeCosts.begin(), uniqueEdgeCosts.end());
-	size_t l = 0, r = sortedEdgeCosts.size();
+	std::vector<double> sortedEdgeCosts(nAgents * nGoals);
+	auto agentPtr = agents.begin();
+	size_t curOff = 0;
+	for (size_t agentIndex = 0; agentIndex != nAgents; agentIndex++, agentPtr++)
+	{
+		auto goalPtr = goals.begin();
+		for (size_t goalIndex = 0; goalIndex != nGoals; goalIndex++, goalPtr++)
+		{
+			// minimizar a maior distância / minimizar a maior distância ao quadrado dá na mesma. Mas o último é mais barato
+			auto& v = costMatrix[agentIndex][goalIndex] = distance2(*agentPtr, *goalPtr);
+			sortedEdgeCosts[curOff++] = v;
+		}
+	}
+	auto beg = sortedEdgeCosts.begin();
+	auto end = sortedEdgeCosts.end();
+	std::sort(beg, end);
+	size_t l = 0, r = std::distance(beg, std::unique(beg, end));
 	Edges edgesOfBestMatching;
 	while (l != r)
 	{
@@ -751,7 +694,7 @@ Edges Simulator2D::getEdgesMinimizingBiggestEdgeAndUpdateInternalVariables()
 		const auto& costSquared = costMatrix[agentIndex][goalIndex];
 		currentTotalSumOfEachEdgeDistanceSquared += costSquared;
 
-		auto d = sqrt(costSquared);
+		const auto d = sqrt(costSquared);
 		distances.emplace_back(d);
 		currentTotalSumOfEachEdgeDistance += d;
 	}
@@ -765,175 +708,6 @@ Edges Simulator2D::getEdgesMinimizingBiggestEdgeAndUpdateInternalVariables()
 	return edgesOfBestMatching;
 }
 
-float Agent2D::getRadius()
-{
-	return static_cast<float>(radius);
-}
-
-vec2d& Agent2D::accessCoord()
-{
-	return coord;
-}
-
-Agent2D::Agent2D(const vec2d& coord, double radius, const sf::Color& color) :
-	coord(coord),
-	goalPtr(nullptr),
-	radius(radius),
-	color(color)
-{
-}
-
-double distanceAgent(const Agent2D& agent, const Goal& goal)
-{
-	return sqrt(distanceSquaredAgent(agent, goal));
-}
-
-double distanceSquaredAgent(const Agent2D& agent, const Goal& goal)
-{
-	return distanceSquared(agent.coord, goal.coord);
-}
-
-bool Simulator2D::SelectAction::pollEvent(const sf::Event& event)
-{
-	switch (event.type)
-	{
-	case sf::Event::KeyPressed:
-	{
-		switch (event.key.code)
-		{
-		case sf::Keyboard::Delete:
-		{
-			auto tryDelete = [&]
-			{
-				for (auto it = sim.agents.begin(); it != sim.agents.end(); it++)
-				{
-					if (it->get() == elemSelected)
-					{
-						sim.agents.erase(it);
-						return true;
-					}
-				}
-				for (auto it = sim.goals.begin(); it != sim.goals.end(); it++)
-				{
-					if (it->get() == elemSelected)
-					{
-						sim.goals.erase(it);
-						return true;
-					}
-				}
-				return false;
-			};
-			if (tryDelete())
-			{
-				switch (sim.editModeType)
-				{
-				case EditModeType::Free:
-				{
-					for (auto& agent : sim.agents)
-						if (agent->goalPtr == elemSelected)
-							agent->goalPtr = nullptr;
-				}
-				break;
-				case EditModeType::Metric:
-				{
-					sim.updateGraphEdges();
-				}
-				break;
-				}
-				elemSelected = nullptr;
-			}
-
-		}
-		break;
-		}
-	}
-	break;
-	case sf::Event::MouseButtonPressed:
-	{
-		switch (event.mouseButton.button)
-		{
-		case sf::Mouse::Left:
-		{
-			isHoldingLeftClick = true;
-			if (elemSelected)
-			{
-				const auto& coord = elemSelected->accessCoord();
-				auto coordDouble = sim.getCoordDouble(event.mouseButton.x, event.mouseButton.y);
-				curOff = coord - coordDouble;
-			}
-
-		}
-		break;
-		}
-	}
-	break;
-	case sf::Event::MouseButtonReleased:
-	{
-		switch (event.mouseButton.button)
-		{
-		case sf::Mouse::Left:
-		{
-			isHoldingLeftClick = false;
-
-		}
-		break;
-		}
-	}
-	break;
-	case sf::Event::MouseMoved:
-	{
-		auto coordDouble = sim.getCoordDouble(event.mouseMove.x, event.mouseMove.y);
-		if (isHoldingLeftClick && elemSelected) // move agent
-		{
-			auto& coord = elemSelected->accessCoord();
-			coord = coordDouble + curOff;
-			if (sim.editModeType == EditModeType::Metric)
-				sim.updateGraphEdges();
-			return true;
-		}
-		else
-		{
-			elemSelected = nullptr;
-			auto curMinD2 = std::numeric_limits<double>::max();
-			for (auto& agent : sim.agents)
-				if (TryUpdateClosestCircle(coordDouble, curMinD2, agent->coord, agent->radius))
-					elemSelected = agent.get();
-			for (auto& goal : sim.goals)
-				if (TryUpdateClosestCircle(coordDouble, curMinD2, goal->coord, goal->r))
-					elemSelected = goal.get();
-		}
-	}
-	break;
-	}
-	return false;
-}
-
-void Simulator2D::SelectAction::draw()
-{
-	// outline element hovered
-	if (elemSelected)
-	{
-		const auto& coordSelected = elemSelected->accessCoord();
-		sf::CircleShape c;
-		c.setFillColor(sf::Color(20, 40, 200, 140));
-		c.setPosition(coordSelected);
-		PrepareCircleRadius(c, elemSelected->getRadius());
-		sim.app.window.draw(c);
-	}
-}
-
-bool Simulator2D::SelectAction::canMoveView()
-{
-	return !elemSelected;
-}
-
-Simulator2D::SelectAction::SelectAction(Simulator2D& sim) :
-	LeftClickInterface(sim),
-	elemSelected(nullptr),
-	isHoldingLeftClick(false)
-{
-}
-
 Simulator2D::AddAgentAction::AddAgentAction(Simulator2D& sim) :
 	AddItemAction(sim)
 {
@@ -941,7 +715,7 @@ Simulator2D::AddAgentAction::AddAgentAction(Simulator2D& sim) :
 
 void Simulator2D::AddAgentAction::placeItem(double x, double y)
 {
-	sim.addAgent({ { x, y } });
+	sim.addAgent((float)x, (float)y);
 }
 
 void Simulator2D::AddGoalAction::placeItem(double x, double y)
@@ -954,22 +728,152 @@ Simulator2D::AddGoalAction::AddGoalAction(Simulator2D& sim) :
 {
 }
 
-Simulator2D::LeftClickInterface::LeftClickInterface(Simulator2D& sim) :
-	sim(sim)
+std::optional<std::pair<Simulator2D::EventInterface::It, Simulator2D::TypeHovered>>
+	Simulator2D::EventInterface::tryGetElementHovered(
+		const vec2d& coordDouble)
+{
+	bool found = false;
+	It retIt;
+	auto curMinD2 = std::numeric_limits<float>::max();
+	TypeHovered typeHovered;
+	auto helper = [&](auto&& c, TypeHovered type)
+	{
+		auto it = c.begin(), lim = c.end();
+		while (it != lim)
+		{
+			auto& e = *it;
+			if (TryUpdateClosestCircle(coordDouble, curMinD2, e))
+			{
+				found = true;
+				retIt = it;
+				typeHovered = type;
+			}
+			it++;
+		}
+	};
+	helper(sim.agents, TypeHovered::Agent);
+	helper(sim.goals, TypeHovered::Goal);
+	if (found)
+		return { {retIt, typeHovered} };
+	return {};
+}
+
+Simulator2D::EventInterface::EventInterface(Simulator2D& sim) :
+	sim(sim),
+	isHoldingLeftClick(false),
+	isHoldingRightClick(false)
 {
 }
 
-void Simulator2D::LeftClickInterface::draw()
+void Simulator2D::EventInterface::draw()
 {
-
+	// outline element hovered
+	//if (elemSelected)
+	//{
+	//	const auto& coordSelected = elemSelected->accessCoord();
+	//	sf::CircleShape c;
+	//	c.setFillColor(sf::Color(20, 40, 200, 140));
+	//	c.setPosition(coordSelected);
+	//	PrepareCircleRadius(c, elemSelected->getRadius());
+	//	sim.app.window.draw(c);
+	//}
 }
 
-bool Simulator2D::LeftClickInterface::canMoveView()
+void Simulator2D::EventInterface::pollEvent(const sf::Event& event)
 {
-	return true;
+	if (sim.nav)
+		return;
+	const auto& elemHovered = sim.elemHovered;
+	switch (event.type)
+	{
+	case sf::Event::MouseButtonPressed:
+	{
+		switch (event.mouseButton.button)
+		{
+		case sf::Mouse::Left:
+		{
+			isHoldingLeftClick = true;
+		}
+		break;
+		case sf::Mouse::Right:
+		{
+			isHoldingRightClick = true;
+			if (elemHovered)
+			{
+				const auto& coord = elemHovered->coord;
+				const auto coordDouble = sim.getCoordDouble(event.mouseButton.x, event.mouseButton.y);
+				curOff = coord - coordDouble;
+			}
+		}
+		break;
+		}
+	}
+	break;
+	case sf::Event::MouseButtonReleased:
+	{
+		switch (event.mouseButton.button)
+		{
+		case sf::Mouse::Left:
+		{
+			isHoldingLeftClick = false;
+		}
+		break;
+		case sf::Mouse::Right:
+		{
+			isHoldingRightClick = false;
+		}
+		break;
+		}
+	}
+	break;
+	case sf::Event::MouseMoved:
+	{
+		const auto coord = sim.getCoordDouble(
+			event.mouseMove.x,
+			event.mouseMove.y
+		);
+		if (isHoldingRightClick && elemHovered) // move agent
+		{
+			elemHovered->coord = coord + curOff;
+			sim.tryUpdateAllocation();
+		}
+		else
+			sim.recalculateElemHovered(coord);
+	}
+	break;
+	case sf::Event::KeyPressed:
+	{
+		switch (event.key.code)
+		{
+		case sf::Keyboard::Delete:
+		{
+			if (auto& elemHovered = sim.elemHovered)
+			{
+				const auto& it = sim.elemHoveredIt;
+				auto& e = *it;
+				if (auto& p = e.par)
+				{
+					p->par = nullptr;
+					p = nullptr;
+				}
+				if (sim.typeHovered == TypeHovered::Agent)
+					sim.agents.erase(it);
+				else
+					sim.goals.erase(it);
+				sim.tryUpdateAllocation();
+				elemHovered = nullptr;
+			}
+
+		}
+		break;
+		}
+	}
+	break;
+	}
+	pollEventExtra(event);
 }
 
-bool Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
+void Simulator2D::AddItemAction::pollEventExtra(const sf::Event& event)
 {
 	switch (event.type)
 	{
@@ -980,7 +884,6 @@ bool Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
 		case sf::Mouse::Left:
 		{
 			didNotMoveSinceLastPress = true;
-
 		}
 		break;
 		}
@@ -996,12 +899,10 @@ bool Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
 			{
 				auto& x = event.mouseButton.x;
 				auto& y = event.mouseButton.y;
-				auto coord = sim.app.window.mapPixelToCoords({ x, y });
-				placeItem(static_cast<double>(coord.x), static_cast<double>(coord.y));
-				if (sim.editModeType == EditModeType::Metric)
-					sim.updateGraphEdges();
-
-
+				auto coord = sim.getCoordDouble(x, y);
+				placeItem(coord.x, coord.y);
+				sim.tryUpdateAllocation();
+				sim.recalculateElemHovered({ coord.x, coord.y });
 			}
 		}
 		break;
@@ -1014,11 +915,10 @@ bool Simulator2D::AddItemAction::pollEvent(const sf::Event& event)
 	}
 	break;
 	}
-	return false;
 }
 
 Simulator2D::AddItemAction::AddItemAction(Simulator2D& sim) :
-	LeftClickInterface(sim),
+	EventInterface(sim),
 	didNotMoveSinceLastPress(true)
 {
 }
@@ -1029,50 +929,51 @@ void Simulator2D::AddEdgeAction::clear()
 	curGoal = nullptr;
 }
 
-bool Simulator2D::AddEdgeAction::pollEvent(const sf::Event& event)
+void Simulator2D::AddEdgeAction::pollEventExtra(const sf::Event& event)
 {
 	switch (event.type)
 	{
-	case sf::Event::MouseMoved:
-	{
-		elemHoveredPtr = nullptr;
-		auto curMinD2 = std::numeric_limits<double>::max();
-		auto coordDouble = sim.getCoordDouble(event.mouseMove.x, event.mouseMove.y);
-		for (auto& agent : sim.agents)
-			if (TryUpdateClosestCircle(coordDouble, curMinD2, agent->coord, agent->radius))
-				elemHoveredPtr = agent.get(), typeHovered = Type::Agent;
-		for (auto& goal : sim.goals)
-			if (TryUpdateClosestCircle(coordDouble, curMinD2, goal->coord, goal->r))
-				elemHoveredPtr = goal.get(), typeHovered = Type::Goal;
-	}
-	break;
 	case sf::Event::MouseButtonPressed:
 	{
-		if (elemHoveredPtr)
+		switch (event.mouseButton.button)
 		{
-			if (typeHovered == Type::Agent)
-				curAgent = static_cast<Agent2D*>(elemHoveredPtr);
+		case sf::Mouse::Left:
+		{
+			if (const auto& elemHovered = sim.elemHovered)
+			{
+				const auto& typeHovered = sim.typeHovered;
+				elemSelected = elemHovered;
+				if (typeHovered == TypeHovered::Agent)
+					curAgent = static_cast<Agent*>(elemSelected);
+				else
+					curGoal = static_cast<Goal*>(elemSelected);
+			}
 			else
-				curGoal = static_cast<Goal*>(elemHoveredPtr);
-			elemHoveredPtr = nullptr;
-		}
-		else
-			clear();
+				clear();
 
-		if (curAgent && curGoal)
-		{
-			sim.addEdge(*curAgent, *curGoal);
-			clear();
+			if (curAgent && curGoal)
+			{
+				auto tryDisconnect = [&](auto& x)
+				{
+					if (auto& p = x->par)
+						p->par = nullptr;
+				};
+				tryDisconnect(curAgent);
+				tryDisconnect(curGoal);
+				sim.addEdge(*curAgent, *curGoal);
+				clear();
+			}
+		}
+		break;
 		}
 	}
 	break;
 	}
-	return false;
 }
 
 Simulator2D::AddEdgeAction::AddEdgeAction(Simulator2D& sim) :
-	LeftClickInterface(sim),
-	elemHoveredPtr(nullptr),
+	EventInterface(sim),
+	elemSelected(nullptr),
 	curAgent(nullptr),
 	curGoal(nullptr)
 {
@@ -1080,10 +981,10 @@ Simulator2D::AddEdgeAction::AddEdgeAction(Simulator2D& sim) :
 
 void Simulator2D::AddEdgeAction::draw()
 {
-	auto overlayCircleWithColor = [&](ElemSelected* curHovered, const sf::Color& color)
+	auto overlayCircleWithColor = [&](ElementInteractable* ePtr, const sf::Color& color)
 	{
-		const auto& coord = curHovered->accessCoord();
-		const auto& r = curHovered->getRadius();
+		const auto& coord = ePtr->coord;
+		const auto& r = ePtr->radius;
 		auto& c = sim.circle;
 		c.setPosition(coord);
 		c.setFillColor(color);
@@ -1091,14 +992,9 @@ void Simulator2D::AddEdgeAction::draw()
 		sim.app.window.draw(c);
 	};
 
-	if (elemHoveredPtr && elemHoveredPtr != curAgent && elemHoveredPtr != curGoal)
-	{
-		overlayCircleWithColor(elemHoveredPtr, sf::Color::Cyan);
-	}
-
-	static const sf::Color SELECTING_VERTEX_FOR_NEW_ADD_COLOR = sf::Color(0xff9933ff);
-
-	if (curAgent) overlayCircleWithColor(curAgent, SELECTING_VERTEX_FOR_NEW_ADD_COLOR);
+	static const sf::Color SELECTING_VERTEX_FOR_NEW_ADD_COLOR = sf::Color(0xff9933ef);
+	if (curAgent)
+		overlayCircleWithColor(curAgent, SELECTING_VERTEX_FOR_NEW_ADD_COLOR);
 	if (curGoal)
 		overlayCircleWithColor(curGoal, SELECTING_VERTEX_FOR_NEW_ADD_COLOR);
 }
@@ -1106,18 +1002,23 @@ void Simulator2D::AddEdgeAction::draw()
 void Simulator2D::quitNavigator()
 {
 	auto agentsCoords = getAgentsCoordinatesFromNavigator();
-	navigator.reset();
+	nav.reset();
 	auto n = agentsCoords.size();
-	for (size_t i = 0; i != n; i++)
-		agents[i]->coord = agentsCoords[i];
+	size_t i = 0;
+	auto it = agents.begin(), end = agents.end();
+	while (it != end)
+	{
+		it->coord = agentsCoords[i];
+		it++; i++;
+	}
 }
 
-ImgViewer& Simulator2D::accessImgViewer()
+double distance1(const ElementInteractable& e1, const ElementInteractable& e2)
 {
-	return app.viewerBase->accessImgViewer();
+	return distance(e1.coord, e2.coord);
 }
-//sf::Rect<double> Simulator2D::getImgBB()
-//{
-//	auto& img = accessImgViewer();
-//	return img.getBB();
-//}
+
+double distance2(const ElementInteractable& e1, const ElementInteractable& e2)
+{
+	return distanceSquared(e1.coord, e2.coord);
+}

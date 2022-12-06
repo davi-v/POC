@@ -4,7 +4,6 @@
 #include "Utilities.hpp"
 #include "Application.hpp"
 #include "Simulator2D.hpp"
-#include "DrawUtil.hpp"
 
 static constexpr double ARBITRARY_CONSTANT = 3;
 
@@ -33,10 +32,10 @@ vec2d NavigatorCamposPotenciais::getRepulsionVec(const Object& c1, const Object&
 	return ARBITRARY_CONSTANT / square(d) * off;
 }
 
-void NavigatorCamposPotenciais::addAgent(const Agent2D& agent)
+void NavigatorCamposPotenciais::addAgent(const Agent& agent)
 {
 	vec2d dst;
-	if (const auto& goalPtr = agent.goalPtr)
+	if (const auto& goalPtr = agent.par)
 		dst = goalPtr->coord;
 	else
 		dst = agent.coord;
@@ -71,7 +70,7 @@ void NavigatorCamposPotenciais::tick()
 	}
 }
 
-void NavigatorCamposPotenciais::drawUI()
+void NavigatorCamposPotenciais::drawUIExtra()
 {
 	ImGui::DragFloat("Max Radius", &maxRadius, 1.0f, 0, std::numeric_limits<float>::max());
 	ImGui::InputDouble("Max Vel", &maxVel);
@@ -85,7 +84,7 @@ void NavigatorCamposPotenciais::draw()
 	// destinations
 	auto& circle = sim.circle;
 	circle.setFillColor(sf::Color::Green);
-	PrepareCircleRadius(circle, sim.r);
+	PrepareCircleRadius(circle, sim.radius);
 	for (const auto& agent : agents)
 	{
 		circle.setPosition(agent.dst);
@@ -140,5 +139,5 @@ NavigatorCamposPotenciais::NavigatorCamposPotenciais(Simulator2D& sim, float r) 
 	drawRadius(true)
 {
 	for (const auto& agent : sim.agents)
-		addAgent(*agent);
+		addAgent(agent);
 }

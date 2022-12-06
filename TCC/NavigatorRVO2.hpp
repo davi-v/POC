@@ -1,22 +1,29 @@
 #pragma once
 #include "NavigatorInterface.hpp"
 #include "Simulator2D.hpp"
+#include "ViewerBase.hpp"
+
+typedef std::vector<Agent> Agents;
 
 class NavigatorRVO2 : public NavigatorInterface
 {
+	sf::Color getColor(float x, float y) const;
+	void readd();
+	ViewerBase* viewerBase;
+	sf::RenderWindow& w;
 	void dumpCSV();
 
 	std::vector<vec2d> getAgentPositions() override;
 
-	void addAgentImpl(const Agent2D& agent);
+	void addAgentImpl(const Agent& agent);
 
-	std::vector<const Agent2D*> orgAgents;
+	Agents agents;
 
-	bool drawGoals;
-	bool drawTrajectories;
+	bool
+		drawGoals,
+		drawTrajectories;
+
 	std::vector<std::vector<vec2f>> coordsThroughTime;
-
-	static constexpr float RADIUS_MULTIPLIER_FACTOR = 1.2f;
 
 	static constexpr float DEFAULT_TIME_HORIZON = 60;
 	static constexpr float DEFAULT_TIME_HORIZON_OBST = DEFAULT_TIME_HORIZON;
@@ -32,15 +39,28 @@ class NavigatorRVO2 : public NavigatorInterface
 	float decel = maxSpeed / .4f;
 
 	std::unique_ptr<RVO::RVOSimulator> rvoSim;
-	Simulator2D& sim;
 
+	void init();
+
+	NavigatorRVO2(sf::RenderWindow& w, ViewerBase* viewerBase);
+
+public:
 	void restart();
-	void addAgent(const Agent2D& agent) override;
+	void addAgent(const Agent& agent) override;
 	void tick() override;
-	void drawUI() override;
+	void drawUIExtra() override;
 	void draw() override;
 	void updateTimeStep(float timeStep) override;
 
-public:
-	NavigatorRVO2(Simulator2D& s, float neighbourDist);
+	// não chame com agents vazio
+	NavigatorRVO2(Simulator2D& sim);
+	NavigatorRVO2(ViewerBase& viewerBase, Agents& agents);
+
+	template<class C>
+	NavigatorRVO2(sf::RenderWindow& w, ViewerBase* v, const C& a) :
+		NavigatorRVO2(w, v)
+	{
+		agents.assign(a.begin(), a.end());
+		init();
+	}
 };

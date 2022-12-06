@@ -2,13 +2,14 @@
 #include "PreviewHex.hpp"
 
 #include "Application.hpp"
+#include "OpenCVSFML.hpp"
 
 void PreviewHex::draw()
 {
-	auto& w = viewerBase.app.window;
-	const auto& img = viewerBase.accessImgViewer();
+	auto& w = viewerBase.app->window;
+	const auto& img = viewerBase;
 	const auto& imageOffset = img.imageOffsetF;
-	if (showHexGrid)
+	if (drawHexGrid)
 	{
 		for (int x = 0; x != hexGridXMax; x++)
 			for (int y = 0; y != hexGridYMax; y++)
@@ -34,24 +35,26 @@ void PreviewHex::draw()
 				w.draw(vertices, 12, sf::Lines);
 			}
 	}
-	if (showGoals)
+	if (drawGoals)
 	{
 		auto& r = viewerBase.radius;
 		sf::CircleShape circle{ r };
-		if (showCircleBorderOnly)
+		if (drawCircleBorderOnly)
 		{
-			circle.setOutlineColor(circleBorderColor);
+			circle.setFillColor(sf::Color(0));
+			circle.setOutlineColor(viewerBase.circleColorSFML);
 			circle.setOutlineThickness(-r * .1f);
 		}
 		circle.setOrigin(r, r);
 		for (const auto& circleCenter : goalsPositions)
 		{
 			circle.setPosition(circleCenter);
-			circle.setFillColor(viewerBase.getColor(circleCenter));
+			if (!drawCircleBorderOnly)
+				circle.setFillColor(viewerBase.getColor(circleCenter));
 			w.draw(circle);
 		}
 	}
-	if (showSmallerHexagon)
+	if (drawSmallerHexagon)
 	{
 		auto localCoords = getHexagonOffsets();
 		for (auto& coord : localCoords)
@@ -126,7 +129,7 @@ void PreviewHex::draw()
 
 		borderDrawing.setPosition(mapBorderCoord);
 		borderDrawing.setFillColor(sf::Color{ 0 });
-		borderDrawing.setOutlineColor(sf::Color::White);
+		borderDrawing.setOutlineColor(hexGridBorderColor);
 		borderDrawing.setOutlineThickness(2.f);
 		w.draw(borderDrawing);
 	}
@@ -136,6 +139,8 @@ void PreviewHex::draw()
 
 void PreviewHex::pollEvent(const sf::Event& e)
 {
+	if (sim)
+		sim->pollEvent(e);
 }
 
 const char* PreviewHex::getTitle()
@@ -148,35 +153,35 @@ PreviewHex::PreviewHex(ViewerBase& viewerBase) :
 	allocationType(AllocationType::Unlimited),
 	nRobotsBudget(DEFAULT_N_ROBOTS),
 	drawHexGridBorder{false},
-	showGoals{ true },
+	drawGoals{ true },
 	bestFitCircles{ true },
 	hexPlotReady{ false },
-	showCircleBorderOnly{ false },
-	usePixelsInConfigurationSpaceOnly{false},
+	drawCircleBorderOnly{ false },
+	usePixelsInConfigurationSpaceOnly(true),
 	clipToConfigurationSpace{ true },
 	drawOrgOffsets{false},
-	showHexGrid{ true },
+	drawHexGrid{ true },
 	highlightHexHovered{false},
-	showSmallerHexagon{false},
+	drawSmallerHexagon{false},
 	numberOfBars{20},
-	numberOfBarsPrev{numberOfBars - 1}
+	numberOfBarsPrev{numberOfBars - 1},
+	hexGridColor(sf::Color::Red),
+	offsetLinesColor(sf::Color::Green),
+	hexGridBorderColor(sf::Color::White)
 {
-	updatedRadius();
+	hexSide = viewerBase.imgWF * 0.05f;
 	onImgChangeImpl();
-	recalculateGoalPositions();
 }
 
-void PreviewHex::updatedRadiusCallback()
+void PreviewHex::setHexSmallData()
 {
-	updatedRadius();
-	recalculateGoalPositions();
-}
-
-void PreviewHex::updatedRadius()
-{
-	curMinHexagonSide = viewerBase.radius * INV_SIN_60;
+	curMinHexSide = viewerBase.radius * INV_SIN_60;
 	updateSmallHexagonDataThatDependOnHexHeightAndRadius();
+}
 
+void PreviewHex::onUpdateRadius()
+{
+	setHexSmallData();
 	if (usePixelsInConfigurationSpaceOnly) // mudar o raio não muda o número de círculos alocados se estamos ignorando o espaço de configuração
 		signalNeedToUpdateHexPlot();
 }
@@ -186,10 +191,10 @@ std::array<sf::Vector2f, 6> PreviewHex::getHexagonOffsets()
 	return
 	{
 		sf::Vector2f{ +hexagonHalfSide, -hexHeight },
-		sf::Vector2f{ +hexagonSide, 0 },
+		sf::Vector2f{ +hexSide, 0 },
 		sf::Vector2f{ +hexagonHalfSide, +hexHeight },
 		sf::Vector2f{ -hexagonHalfSide, +hexHeight },
-		sf::Vector2f{ -hexagonSide, 0 },
+		sf::Vector2f{ -hexSide, 0 },
 		sf::Vector2f{ -hexagonHalfSide, -hexHeight },
 	};
 }
@@ -208,15 +213,21 @@ std::array<sf::Vector2f, 6> PreviewHex::getHexagonCoordsInLocalSpace(int x, int 
 
 void PreviewHex::onImgChangeImpl()
 {
+	recreateFilterTextureAndColorMap();
 	signalNeedToUpdateHexPlot();
-	const auto& img = viewerBase.accessImgViewer();
-	const auto [C, H] = img.currentImage->getSize();
-	const auto rowsF = static_cast<float>(H);
-	vec2f p{ static_cast<float>(C), rowsF };
+
+	const auto [X, Y] = viewerBase.currentImage->getSize();
+	const auto rowsF = static_cast<double>(Y);
+	vec2d p{ static_cast<double>(X), rowsF };
 	const auto proj = projPointUAxis(p, HEX_AXIS[0]);
-	curMaxHexagonSide = std::max(rowsF, length(proj)) / SIN_60;
-	hexagonSide = std::max(img.imgWF * 0.05f, curMinHexagonSide);
-	updateHexVars();
+	curMaxHexSide = float(std::max(rowsF, length(proj)) / SIN_60);
+
+
+	setHexSmallData();
+	hexSide = std::clamp(hexSide, curMinHexSide, curMaxHexSide);
+
+	onUpdateHexVars();
+	recalculateGoalPositions();
 }
 
 size_t PreviewHex::getNumRobotsAllocated()
@@ -224,78 +235,99 @@ size_t PreviewHex::getNumRobotsAllocated()
 	return goalsPositions.size();
 }
 
+const sf::Image& PreviewHex::accessColorMapImg()
+{
+	return colorMapImage;
+}
+
 void PreviewHex::drawUIImpl()
 {
-	if (ImGui::BeginMenu("Goals"))
+	if (ImGui::CollapsingHeader("Robots"))
 	{
-		ImGui::Checkbox("Show", &showGoals);
-		if (ImGui::ColorEdit3("Color", viewerBase.circleColorF3))
-			viewerBase.circleColorSFML = ToSFMLColor(viewerBase.circleColorF3);
+		ImGui::Checkbox("Draw", &drawGoals);
+		ColorPicker3U32("Color", viewerBase.circleColorSFML);
 
-		ImGui::Checkbox("Border Only", &showCircleBorderOnly);
+		ImGui::Checkbox("Border Only", &drawCircleBorderOnly);
 
-		auto& r = viewerBase.radius;
-		if (ShowRadiusOption(r, hexHeight))
-			updatedRadiusCallback();
+		if (ImGui::SliderFloat("Radius", &viewerBase.radius, .5f, hexHeight))
+		{
+			onUpdateRadius();
+			recalculateGoalPositions();
+			recreateFilterTextureAndColorMap();
+		}
 
-		ImGui::Begin("Filter");
-		auto& img = viewerBase.accessImgViewer();
-		ImGui::Image(img.currentFilterSprite);
-		ImGui::End();
-
-		ImGui::EndMenu();
+		if (ImGui::TreeNode("Filter"))
+		{
+			ImGui::Image(viewerBase.currentFilterSprite);
+			ImGui::TreePop();
+		}
 	}
-	if (ImGui::BeginMenu("Hexagon"))
+	if (ImGui::CollapsingHeader("Hexagon"))
 	{
-		ImGui::Checkbox("Grid", &showHexGrid);
-		ImGui::Checkbox("Rect Around Hex Grid", &drawHexGridBorder);
-		ImGui::Checkbox("Configuration Space", &showSmallerHexagon);
-		ImGui::Checkbox("Highlight Hovered", &highlightHexHovered);
+		ImGui::LabelText("Number of Circles Allocated", "%zu", goalsPositions.size());
 
-		if (ImGui::SliderFloat("Side", &hexagonSide, curMinHexagonSide, curMaxHexagonSide))
+		if (ImGui::TreeNode("Grid"))
+		{
+			ImGui::Checkbox("Draw", &drawHexGrid);
+			ColorPicker3U32("Color", hexGridColor);
+			ImGui::TreePop();
+		}
+
+		ImGui::Checkbox("Configuration Space", &drawSmallerHexagon);
+
+		ImGui::Checkbox("Highlight Hexagon Hovered", &highlightHexHovered);
+
+		if (ImGui::SliderFloat("Side", &hexSide, curMinHexSide, curMaxHexSide))
 			updateVarsThatDependOnCircleAndHexagon();
 
-		ImGui::LabelText("Number of Circles Alocated", "%zu", goalsPositions.size());
-
-		static constexpr int MAX_BARS = 1000;
-		if (ImGui::DragInt("Number of Bars", &numberOfBars, 1, 2, MAX_BARS, "%d", ImGuiSliderFlags_AlwaysClamp))
+		if (ImGui::TreeNode("Bounding Box"))
 		{
-			numberOfBarsPrev = numberOfBars - 1;
-			signalNeedToUpdateHexPlot();
+			ImGui::Checkbox("Rect Around Hex Grid", &drawHexGridBorder);
+			ColorPicker3U32("Rect Around Hex Grid Color", hexGridBorderColor);
+			ImGui::TreePop();
 		}
 
-		if (!hexPlotReady)
+		if (ImGui::TreeNode("Plot"))
 		{
-			if (ImGui::MenuItem("Create Hexagon Side Plot"))
+			static constexpr int MAX_BARS = 1000;
+			if (ImGui::DragInt("Number of Bars", &numberOfBars, 1, 2, MAX_BARS, "%d", ImGuiSliderFlags_AlwaysClamp))
 			{
-				hexPlotReady = true;
+				numberOfBarsPrev = numberOfBars - 1;
+				signalNeedToUpdateHexPlot();
+			}
 
-				auto hexSideUsing = hexagonSide;
-
-				barData.resize(numberOfBars);
-				for (int i = 0; i != numberOfBars; i++)
+			if (!hexPlotReady)
+			{
+				if (ImGui::Button("Create Hexagon Side Plot"))
 				{
-					auto curOff = static_cast<float>(i) / numberOfBarsPrev;
-					auto curHexSide = curMinHexagonSide * (1.f - curOff) + curMaxHexagonSide * curOff;
-					barData[i] = getNumCirclesUsingThisHexagonSide(curHexSide);
+					hexPlotReady = true;
+
+					auto hexSideUsing = hexSide;
+
+					barData.resize(numberOfBars);
+					for (int i = 0; i != numberOfBars; i++)
+					{
+						auto curOff = static_cast<float>(i) / numberOfBarsPrev;
+						auto curHexSide = curMinHexSide * (1.f - curOff) + curMaxHexSide * curOff;
+						barData[i] = getNumCirclesUsingThisHexagonSide(curHexSide);
+					}
+
+					hexSide = hexSideUsing;
+					onUpdateHexVars();
 				}
-
-				hexagonSide = hexSideUsing;
-				updateHexVars();
 			}
-		}
-		if (hexPlotReady)
-		{
-			if (ImPlot::BeginPlot("Total Number of Allocated Robots per Hexagon Side"))
+			if (hexPlotReady)
 			{
-				ImPlot::PlotBars("", barData.data(), static_cast<int>(barData.size()));
-				ImPlot::EndPlot();
+				if (ImPlot::BeginPlot("Total Number of Allocated Robots per Hexagon Side"))
+				{
+					ImPlot::PlotBars("", barData.data(), static_cast<int>(barData.size()));
+					ImPlot::EndPlot();
+				}
 			}
+			ImGui::TreePop();
 		}
-
-		ImGui::EndMenu();
 	}
-	if (ImGui::BeginMenu("Allocation"))
+	if (ImGui::CollapsingHeader("Allocation"))
 	{
 		static constexpr const char* ALLOCATION_TYPES_NAMES[] = {
 			"Unlimited",
@@ -306,6 +338,9 @@ void PreviewHex::drawUIImpl()
 				calculateBestHexagonSideBasedOnNRobotsAndR();
 
 		ImGui::Checkbox("Draw Original Offsets", &drawOrgOffsets);
+		if (ColorPicker3U32("Offsets Color", offsetLinesColor))
+			for (auto& v : offsetsLines)
+				v.color = offsetLinesColor;
 
 		if (ImGui::Checkbox("Use Only Pixels on Configuration Space", &usePixelsInConfigurationSpaceOnly))
 			recalculateCircleCentersAndPlot();
@@ -322,21 +357,19 @@ void PreviewHex::drawUIImpl()
 		}
 		else
 			showNRobotsOption();
-
-		ImGui::EndMenu();
 	}
 	if (sim)
 	{
 		if (!sim->drawUI())
 		{
 			sim.reset();
-			showGoals = true;
+			drawGoals = true;
 		}
 	}
 	else
-		if (ImGui::MenuItem("Navigator"))
+		if (ImGui::Button("Initial Placement"))
 		{
-			showGoals = false;
+			drawGoals = false;
 
 			size_t curBudget;
 			if (allocationType == AllocationType::Unlimited)
@@ -345,7 +378,7 @@ void PreviewHex::drawUIImpl()
 				curBudget = nRobotsBudget;
 
 			MakeUniquePtr(sim, viewerBase.app, viewerBase.radius);
-			// posição inicial dos robôs
+			// posição inicial dos agentes
 			size_t cnt = 0;
 			for (int i = 0; i != hexGridXMax; i++)
 				for (int j = 0; j != hexGridYMax; j++, cnt++)
@@ -357,7 +390,6 @@ void PreviewHex::drawUIImpl()
 			for (const auto& v : goalsPositions)
 				sim->addGoal({ static_cast<double>(v.x), static_cast<double>(v.y) });
 			sim->updateGraphEdges();
-			sim->editModeType = Simulator2D::EditModeType::Metric;
 		}
 }
 
@@ -372,14 +404,14 @@ sf::Vector2f PreviewHex::getHexagonCenterInLocalSpace(int x, int y)
 
 sf::Vector2f PreviewHex::getHexagonCenterInWorldSpace(int x, int y)
 {
-	return getHexagonCenterInLocalSpace(x, y) + viewerBase.accessImgViewer().imageOffsetF;
+	return getHexagonCenterInLocalSpace(x, y) + viewerBase.imageOffsetF;
 }
 
-const vec2f& PreviewHex::accessHexagonUAxis(const vec2f& off)
+const vec2d& PreviewHex::accessHexagonUAxis(const vec2d& off)
 {
 	auto angle = atan2(off.y, off.x);
 	if (angle < 0)
-		angle += 2 * PI;
+		angle += 2 * std::numbers::pi;
 
 	// angle \in [0, 2*pi]
 
@@ -390,10 +422,10 @@ const vec2f& PreviewHex::accessHexagonUAxis(const vec2f& off)
 	return HEX_AXIS[i];
 }
 
-bool PreviewHex::isPixelInsideSmallerHexagon(const sf::Vector2f& pixelCenter, int hx, int hy)
+bool PreviewHex::isPixelInsideSmallerHexagon(const vec2d& pixelCenter, int hx, int hy)
 {
 	auto hc = getHexagonCenterInLocalSpace(hx, hy);
-	vec2f off = pixelCenter - hc;
+	auto off = pixelCenter - hc;
 	//off.y = -off.y; // not necessary because it's symmetric
 	auto& uAxis = accessHexagonUAxis(off);
 	auto proj = projPointUAxis(off, uAxis);
@@ -412,10 +444,10 @@ void PreviewHex::updateSmallHexagonDataThatDependOnHexHeightAndRadius()
 
 void PreviewHex::updateHexagonAuxiliarVariables()
 {
-	const auto& img = viewerBase.accessImgViewer();
-	hexagonHalfSide = hexagonSide * .5f;
-	hexagonStride = hexagonSide + hexagonHalfSide;
-	hexHeight = hexagonSide * SIN_60;
+	const auto& img = viewerBase;
+	hexagonHalfSide = hexSide * .5f;
+	hexagonStride = hexSide + hexagonHalfSide;
+	hexHeight = hexSide * (float)SIN_60;
 	hex2Heights = hexHeight + hexHeight;
 	hexGridXMax = 1 + static_cast<size_t>(ceil((img.imgWF - hexagonHalfSide) / hexagonStride));
 	hexGridYMax = 1 + static_cast<size_t>(ceil((img.imgHF - hexHeight) / hex2Heights));
@@ -427,26 +459,25 @@ void PreviewHex::signalNeedToUpdateHexPlot()
 	hexPlotReady = false;
 }
 
-void PreviewHex::updateHexVars()
+void PreviewHex::onUpdateHexVars()
 {
 	updateHexagonAuxiliarVariables();
 	updateSmallHexagonDataThatDependOnHexHeightAndRadius();
 
-	const auto& img = viewerBase.accessImgViewer();
+	const auto& img = viewerBase;
 	mapBorderCoord = img.imageOffsetF;
-	mapBorderCoord.x -= hexagonSide;
+	mapBorderCoord.x -= hexSide;
 	mapBorderCoord.y -= hexHeight;
 
 	mapBorderSize = {
-		(hexGridXMax - 1) * hexagonStride + 2 * hexagonSide,
-		hexHeight * (hexGridYMax * 2 + 1),
-		//hexGridYMax * 2 * hexHeight + hexHeight,
+		(hexGridXMax - 1) * hexagonStride + 2 * hexSide,
+		hexHeight * (hexGridYMax * 2 + 1), //hexGridYMax * 2 * hexHeight + hexHeight,
 	};
 }
 
 void PreviewHex::updateVarsThatDependOnCircleAndHexagon()
 {
-	updateHexVars();
+	onUpdateHexVars();
 	recalculateGoalPositions();
 }
 
@@ -472,9 +503,9 @@ sf::Vector2i PreviewHex::getHexagonHovered(sf::Vector2f& coord)
 	y = static_cast<int>(floor(coord.y / hex2Heights));
 
 	coord.x = mathMod(coord.x, hexagonStride);
-	if (coord.x > hexagonSide)
+	if (coord.x > hexSide)
 	{
-		coord.x -= hexagonSide;
+		coord.x -= hexSide;
 		coord.y = mathMod(coord.y, hex2Heights);
 		auto checkIsOnTheOtherSideOfTheSegment = [&]
 		{
@@ -522,21 +553,19 @@ std::optional<sf::Vector2i> PreviewHex::tryGetHexagonHovered(sf::Vector2f& coord
 
 size_t PreviewHex::getNumCirclesUsingThisHexagonSide(float curHexSide)
 {
-	hexagonSide = curHexSide;
-	updateHexVars();
-
-	// código retirado e cropado de recalculateCircleCenters
+	hexSide = curHexSide;
+	onUpdateHexVars();
 	size_t r = 0;
 	if (bestFitCircles)
 	{
 		std::vector<std::vector<size_t>> hexagonsPixels(hexGridXMax, std::vector<size_t>(hexGridYMax));
-		const auto& img = viewerBase.accessImgViewer();
+		const auto& img = viewerBase;
 		auto [rows, cols] = img.currentImage->getSize();
 		for (unsigned i = 0; i != rows; i++)
 			for (unsigned j = 0; j != cols; j++)
 			{
 				auto px = img.currentImage->getPixel(i, j);
-				if (viewerBase.isMarked(px))
+				if (px.a)
 				{
 					// local coordinates of the hex grid
 					sf::Vector2f pixelCenter{ i + .5f, j + .5f };
@@ -567,68 +596,51 @@ size_t PreviewHex::getNumCirclesUsingThisHexagonSide(float curHexSide)
 
 void PreviewHex::recalculateGoalPositions()
 {
-	const auto& img = viewerBase.accessImgViewer();
-	if (
-		//allocationType == AllocationType::RobotBased || 
-		bestFitCircles)
+	const auto& img = viewerBase;
+	if (bestFitCircles)
 	{
 		goalsPositions.clear();
 
-		// para cada pixel, calcula o quanto ele influencia cada smaller hexagon
-		// hexagonsPixels[x][y] guarda os pixels marcados que "pertencem" a esse hexágono pequeno
-		// guarda apenas a soma das coordenadas e a quantidade deles para depois fazermos a média
-		std::vector<std::vector<std::pair<sf::Vector2f, size_t>>> hexagonsPixels(hexGridXMax,
-			std::vector<std::pair<sf::Vector2f, size_t>>(hexGridYMax));
-		auto [width, height] = img.currentImage->getSize();
-		for (unsigned i = 0; i != width; i++)
-			for (unsigned j = 0; j != height; j++)
+		std::vector hexagonsPixels(hexGridXMax, std::vector<std::pair<vec2d, double>>(hexGridYMax));
+		const auto [X, Y] = img.currentImage->getSize();
+		for (unsigned i = 0; i != X; i++)
+			for (unsigned j = 0; j != Y; j++)
 			{
-				auto px = img.currentImage->getPixel(i, j);
-				if (viewerBase.isMarked(px))
+				const auto w = img.currentImage->getPixel(i, j).a / 255.;
+				vec2d pixelCenter{ i + .5, j + .5 };
+				auto [hx, hy] = getHexagonHoveredConserving(pixelCenter);
+				if (!usePixelsInConfigurationSpaceOnly || isPixelInsideSmallerHexagon(pixelCenter, hx, hy))
 				{
-					// local coordinates of the hex grid
-					sf::Vector2f pixelCenter{ i + .5f, j + .5f };
-					auto [hx, hy] = getHexagonHoveredConserving(pixelCenter);
-					if (!usePixelsInConfigurationSpaceOnly || isPixelInsideSmallerHexagon(pixelCenter, hx, hy))
-					{
-						auto& [sum, cnt] = hexagonsPixels[hx][hy];
-						sum += pixelCenter;
-						cnt++;
-						isPixelInsideSmallerHexagon(pixelCenter, hx, hy);
-					}
+					auto& [cs, s] = hexagonsPixels[hx][hy];
+					cs += pixelCenter * w;
+					s += w;
 				}
 			}
-
 
 		offsetsLines.clear();
 		for (int x = 0; x != hexGridXMax; x++)
 			for (int y = 0; y != hexGridYMax; y++)
 			{
 				const auto& v = hexagonsPixels[x][y];
-				const auto& sumOfCoords = v.first;
-				const auto& cnt = v.second;
-
-				if (cnt)
+				const auto& [cs, s] = v;
+				if (s)
 				{
-					vec2f mean = sumOfCoords / static_cast<float>(cnt);
+					const auto hexCenter = getHexagonCenterInLocalSpace(x, y);
+					const auto mean = cs / s;
 					auto dst = mean + img.imageOffsetF;
-					auto hexCenter = getHexagonCenterInLocalSpace(x, y);
-
-					// dentro do hexágono amarelo com certeza está dentro do hexágono amarelo, pois é convexo então a média dá ali dentro
-
 					if (!usePixelsInConfigurationSpaceOnly)
 						if (clipToConfigurationSpace)
-							if (vec2f local = mean - hexCenter)
+							if (auto local = mean - hexCenter)
 							{
-								local.y = -local.y; // esse menos é porque o sistema estava com y positivo para baixo (que é o sistema da imagem), mas eu codei o sistema do hexágono com y para cima
+								local.y = -local.y;
 								auto& hexUAxisApotema = accessHexagonUAxis(local);
 								auto curLen = length(local);
 								auto uOff = local / curLen;
 								auto cosAngle = dot(uOff, hexUAxisApotema);
 								auto maxLen = smallerHexHeight / cosAngle;
-								dst = std::min(maxLen, curLen) * vec2f { uOff.x, -uOff.y } + hexCenter + img.imageOffsetF;
+								dst = std::min(maxLen, curLen) * vec2d{ uOff.x, -uOff.y } + hexCenter + img.imageOffsetF;
 							}
-					goalsPositions.emplace_back(dst);
+					goalsPositions.emplace_back((sf::Vector2f)dst);
 
 					offsetsLines.emplace_back(hexCenter + img.imageOffsetF, offsetLinesColor);
 					offsetsLines.emplace_back(dst, offsetLinesColor);
@@ -664,18 +676,74 @@ void PreviewHex::calculateBestHexagonSideBasedOnNRobotsAndR()
 		return;
 	}
 
-	auto m = curMinHexagonSide;
-	auto M = curMaxHexagonSide;
+	auto m = curMinHexSide;
+	auto M = curMaxHexSide;
 	while (M - m > EPS_HEX_BIN_SEARCH)
 	{
-		hexagonSide = (M + m) * .5f;
+		hexSide = (M + m) * .5f;
 		updateVarsThatDependOnCircleAndHexagon();
 		if (getNumRobotsAllocated() <= nRobotsBudget)
-			M = hexagonSide;
+			M = hexSide;
 		else
-			m = hexagonSide;
+			m = hexSide;
 	}
 
-	hexagonSide = M;
+	hexSide = M;
 	updateVarsThatDependOnCircleAndHexagon();
+}
+
+void PreviewHex::recreateFilterTextureAndColorMap()
+{
+	auto& v = viewerBase;
+	const auto side = static_cast<unsigned>(ceil(v.radius * 2));
+
+	sf::Image currentFilterImage;
+	currentFilterImage.create(side, side, sf::Color::White);
+
+	std::vector<float> filterValues(square(static_cast<size_t>(side)));
+	if (side == 1)
+		filterValues.front() = 1.f;
+	else
+	{
+		currentFilterImage.create(side, side);
+		auto mid = vec2d{ (double)side } *.5f;
+
+		auto std = static_cast<double>(side) * .5f / 3.f;
+		auto var = std * std;
+		auto G = [&](double x) // gaussiana com média 0
+		{
+			return static_cast<float>(1 / (std * sqrt(2 * std::numbers::pi)) * pow(std::numbers::e, -.5 * square(x) / var));
+		};
+
+		auto M = G(0);
+
+		for (unsigned x = 0; x != side; x++)
+			for (unsigned y = 0; y != side; y++)
+			{
+				auto off = vec2d(x + .5, y + .5) - mid;
+
+				auto strength = G(length(off));
+				filterValues[(size_t)x * side + y] = strength;
+
+				sf::Color color{
+				static_cast<sf::Uint8>(strength / M * 255),
+				static_cast<sf::Uint8>(strength / M * 255),
+				static_cast<sf::Uint8>(strength / M * 255)
+				};
+				currentFilterImage.setPixel(x, y, color);
+			}
+
+		auto sum = std::accumulate(filterValues.begin(), filterValues.end(), 0.f);
+		for (auto& f : filterValues)
+			f /= sum;
+	}
+	v.currentFilterTexture.loadFromImage(currentFilterImage);
+	v.currentFilterSprite.setTexture(v.currentFilterTexture, true);
+
+	colorMapImage = *v.currentImage; // hard bug to find. Opencv does things with pointers
+	auto mat = SFMLImageToOpenCVBGRA(colorMapImage);
+	cv::Mat kernel(side, side, CV_32F, (void*)filterValues.data());
+	cv::filter2D(mat, mat, -1, kernel);
+	CVBGRAToSFMLTextureAndImage(mat, v.colorMapTexture, colorMapImage);
+	v.colorMapSprite.setTexture(v.colorMapTexture, true);
 }

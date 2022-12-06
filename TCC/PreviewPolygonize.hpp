@@ -1,53 +1,102 @@
 #pragma once
-#include "Previewer.hpp"
+#include "CommonEditor.hpp"
 #include "vec2.hpp"
+#include "PointSelection.hpp"
+#include "CGALStuff.hpp"
+#include "NavigatorRVO2.hpp"
 
-struct FaceInfo2
+class PreviewPolygonize : public CommonEditor
 {
-	int nesting_level;
-	bool in_domain();
-};
+	std::unique_ptr<NavigatorRVO2> nav;
+	std::vector<Agent> agents;
+	std::vector<Goal> goals;
 
-namespace PS = CGAL::Polyline_simplification_2;
+	void recalculateCirclePointCount();
+	bool shouldDrawExtraLines();
+	void recalculateSamples();
 
-typedef CGAL::Exact_predicates_inexact_constructions_kernel       K;
-typedef K::Segment_2                                         Segment;
-//typedef CGAL::Triangulation_vertex_base_2<K>                      Vb;
-typedef PS::Vertex_base_2<K> Vb;
-typedef CGAL::Triangulation_face_base_with_info_2<FaceInfo2, K>    Fbb;
-typedef CGAL::Constrained_triangulation_face_base_2<K, Fbb>        Fb;
-typedef CGAL::Triangulation_data_structure_2<Vb, Fb>               TDS;
-typedef CGAL::Exact_predicates_tag                                Itag;
-typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, Itag>  CDT2;
-typedef CDT2::Point                                                Point;
-typedef CGAL::Polygon_2<K>                                        Polygon_2;
-typedef CDT2::Face_handle                                          Face_handle;
-typedef CGAL::Constrained_triangulation_plus_2<CDT2>                       CDTP2;
+	void recalculateSamplesCentroid();
+	void recalculateSamplesRandom();
 
-typedef CGAL::Delaunay_triangulation_2<
-	K,
-	CGAL::Triangulation_data_structure_2<CGAL::Alpha_shape_vertex_base_2<K>,
-	CGAL::Alpha_shape_face_base_2<K>>
-	>
-	Triangulation_2;
-typedef CGAL::Alpha_shape_2<Triangulation_2>                 Alpha_shape_2;
-//typedef CGAL::Triangulation_data_structure_2<CGAL::Triangulation_vertex_base_2<K>, CGAL::Constrained_triangulation_face_base_2<K, CGAL::Triangulation_face_base_with_info_2<FaceInfo2, K>>>               TDS;
-typedef CGAL::Exact_predicates_tag                                Itag;
+	double getPolArea(double r);
+	CellAreaCalculator cellCalculator;
+	std::vector<vec2d> curCirclePointCount;
+	double curPolArea;
 
-class PreviewPolygonize : public Previewer
-{
+	sf::Color
+		circleColor,
+		highlightColor;
+	static constexpr wchar_t const* GRAPH_FORMAT_EXTS[]{ L"*.txt" };
+	static constexpr auto GRAPH_FORMAT_LENS = sizeof(GRAPH_FORMAT_EXTS) / sizeof(*GRAPH_FORMAT_EXTS);
+	using P = std::pair<size_t, size_t>;
+	typedef std::deque<P> GraphV; // índice do robô, índice do ponto
+	typedef GraphV GraphE; // índices do GraphV
+	GraphV gV, gE;
+	Cell getCellFromCoordAndRadius(const vec2d& c, double r);
+	double getRobotArea(size_t robotIdx) const;
+	double getAreaCovered(size_t i, size_t j);
+	
+	bool shouldAddEdge(size_t i, size_t j) const;
+	void dumpGraph();
+	void dumpGraph2();
+	void importAssignment();
+	void importAssignment2();
+	sf::Color polylineColor;
+	float samplePointRadius;
+	void onChangeRadius(float r1, float r2) override;
+	
+	double ratioMinArea;
+	void recalculateGreedyMethod();
+
+	std::vector<size_t> targets;
 	std::unique_ptr<Alpha_shape_2> alphaShaperPtr;
 	CDTP2 cdtp;
-	sf::Color trigColor, orgVertexColor, alphaVertColor;
+	sf::Color orgTriangleColor, simplifiedTriangleColor, orgVertexColor, alphaVertColor, sampleColor;
 	std::vector<sf::Vertex> trigs, trigsSimplified;
-	double alpha;
+	std::deque<TriangleD> trianglesForSample;
+	std::vector<vec2f> samples;
+	std::deque<std::array<vec2f, 2>> sampleLines;
+	double alphaShapeRadius;
 	std::deque<sf::Vector2f> orgVertices;
-	std::list<sf::Vector2f> alphaVertices, vertices;
-	size_t nComponents, trigCnt;
-	bool showOrgVertices, showVerticesSimplified,
+	std::list<sf::Vector2f> alphaVertices;
+	std::vector<sf::Vector2f> verticesSimplified;
+
+	size_t
+		nComponents,
+		trigsOrgCnt,
+		trigsSimplifiedCnt,
+		limitedNSamples;
+
+	enum class SampleMode
+	{
+		TrigCentroid,
+		QuadCentroid,
+		Random
+	} sampleMode;
+	unsigned
+		samplesSeed,
+		robotsSeed,
+		nRobots;
+
+	double
+		minR,
+		maxR;
+
+	bool
+		drawOrgVertices,
+		drawVerticesSimplified,
 		drawAlphaShapePolylines,
 		drawSimplifiedPolylines,
-		drawTrigs, drawTrigsSimplified, showAlphaVertices;
+		drawTrigs,
+		drawTrigsSimplified,
+		drawAlphaVertices,
+		drawExtraSampleLines,
+		drawVerticesSampled,
+		drawRobots,
+		drawGoals,
+		fillArea,
+		highlightHovered;
+
 	double simplificationRatio; // (0, 1]
 	struct Seg
 	{
@@ -57,13 +106,16 @@ class PreviewPolygonize : public Previewer
 	std::deque<Seg> segments;
 	std::vector<sf::Vertex> segsSimplified;
 
+	size_t pointCount;
+
 	void recalculate();
 	void updateSimplification();
-	void pollEvent(const sf::Event& e) override;
 	void drawUIImpl() override;
-	void draw() override;
+	void drawExtra() override;
 	void onImgChangeImpl() override;
 	const char* getTitle() override;
+	void onAdd(float r) override;
+	void onDelete(float r) override;
 public:
 	PreviewPolygonize(ViewerBase& viewerBase);
 };

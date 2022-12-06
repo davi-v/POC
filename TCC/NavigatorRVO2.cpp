@@ -2,29 +2,26 @@
 #include "NavigatorRVO2.hpp"
 
 #include "Simulator2D.hpp"
-#include "DrawUtil.hpp"
 #include "Application.hpp"
 #include "Utilities.hpp"
 
-NavigatorRVO2::NavigatorRVO2(Simulator2D& sim, float neighbourDist) :
-	sim(sim),
-	neighbourDist(neighbourDist),
-	drawGoals(false),
-	drawTrajectories(false)
+NavigatorRVO2::NavigatorRVO2(Simulator2D& sim) :
+	NavigatorRVO2(sim.app.window, sim.app.viewerBase.get(), sim.agents)
 {
-	MakeUniquePtr(rvoSim);
-	for (const auto& agent : sim.agents)
-		addAgent(*agent);
-	rvoSim->setTimeStep(timeStep);
 }
 
-void NavigatorRVO2::drawUI()
+NavigatorRVO2::NavigatorRVO2(ViewerBase& viewerBase, Agents& agents) :
+	NavigatorRVO2(viewerBase.app->window, &viewerBase, agents)
+{
+}
+
+void NavigatorRVO2::drawUIExtra()
 {
 	bool any = false;
 	any |= ImGui::InputFloat("neighbourDist", &neighbourDist);
 	any |= ImGui::InputScalar("maxNeighbours", ImGuiDataType_U64, &maxNeighbours);
 	any |= ImGui::InputFloat("timeHorizon", &timeHorizon);
-	any |= ImGui::InputFloat("timeHorizonObst", &timeHorizonObst);
+	//any |= ImGui::InputFloat("timeHorizonObst", &timeHorizonObst);
 	auto changedMaxSpeed = ImGui::InputFloat("maxSpeed", &maxSpeed);
 
 	any |= changedMaxSpeed;
@@ -35,7 +32,7 @@ void NavigatorRVO2::drawUI()
 		decel = maxSpeed / .4f;
 	}
 
-	if (ImGui::Button("Restart"))
+	if (ImGui::MenuItem("Restart"))
 		restart();
 
 	ImGui::Checkbox("Draw Goals", &drawGoals);
@@ -48,6 +45,21 @@ void NavigatorRVO2::drawUI()
 		running = false;
 		restart();
 	}
+}
+
+sf::Color NavigatorRVO2::getColor(float x, float y) const
+{
+	if (viewerBase)
+		return viewerBase->getColor(x, y);
+	return sf::Color::Blue;
+}
+
+void NavigatorRVO2::readd()
+{
+	MakeUniquePtr(rvoSim);
+	rvoSim->setTimeStep(timeStep);
+	for (const auto& agent : agents)
+		addAgentImpl(agent);
 }
 
 void NavigatorRVO2::dumpCSV()
@@ -83,7 +95,7 @@ std::vector<vec2d> NavigatorRVO2::getAgentPositions()
 	return r;
 }
 
-void NavigatorRVO2::addAgentImpl(const Agent2D& agent)
+void NavigatorRVO2::addAgentImpl(const Agent& agent)
 {
 	rvoSim->addAgent(
 		RVO::Vector2(static_cast<float>(agent.coord.x), static_cast<float>(agent.coord.y)),
@@ -91,38 +103,47 @@ void NavigatorRVO2::addAgentImpl(const Agent2D& agent)
 		maxNeighbours,
 		timeHorizon,
 		timeHorizonObst,
-		static_cast<float>(agent.radius) * RADIUS_MULTIPLIER_FACTOR,
+		agent.radius,
 		maxSpeed
 	);
 	coordsThroughTime.emplace_back();
 }
 
-void NavigatorRVO2::restart()
+void NavigatorRVO2::init()
 {
-	MakeUniquePtr(rvoSim);
-	rvoSim->setTimeStep(timeStep);
-
-	coordsThroughTime.clear();
-	for (auto& agentPtr : orgAgents)
-		addAgentImpl(*agentPtr);
+	neighbourDist = 6 * std::max_element(agents.begin(), agents.end(), [](const Agent& a, const Agent& b)
+		{
+			return a.radius < b.radius;
+		})->radius;
+	readd();
 }
 
-void NavigatorRVO2::addAgent(const Agent2D& agent)
+NavigatorRVO2::NavigatorRVO2(sf::RenderWindow& w, ViewerBase* viewerBase) :
+	w(w),
+	viewerBase(viewerBase),
+	drawGoals(false),
+	drawTrajectories(false)
 {
-	orgAgents.emplace_back(&agent);
+}
+
+void NavigatorRVO2::restart()
+{
+	coordsThroughTime.clear();
+	readd();
+}
+
+void NavigatorRVO2::addAgent(const Agent& agent)
+{
+	agents.emplace_back(agent);
 	addAgentImpl(agent);
 }
 
 void NavigatorRVO2::tick()
 {
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
 	for (size_t i = 0, end = rvoSim->getNumAgents(); i != end; i++)
 	{
-		const auto& goalPtr = orgAgents[i]->goalPtr;
 		RVO::Vector2 prefVel;
-		if (goalPtr)
+		if (const auto& goalPtr = agents[i].par)
 		{
 			auto vecToGoal = static_cast<RVO::Vector2>(goalPtr->coord) - rvoSim->getAgentPosition(i);
 			auto lenSquared = vecToGoal * vecToGoal; // "*" is RVO's dot product
@@ -150,32 +171,27 @@ void NavigatorRVO2::tick()
 				prefVel = speed / len * vecToGoal; // vecToGoal normalized times speed
 			}
 		}
-
 		rvoSim->setAgentPrefVelocity(i, prefVel);
 	}
-
 	rvoSim->doStep();
 }
 
 void NavigatorRVO2::draw()
 {
-	auto& circle = sim.circle;
-	auto& window = sim.app.window;
-
-	auto nAgents = rvoSim->getNumAgents();
-
+	sf::CircleShape circle;
+	const auto nAgents = rvoSim->getNumAgents();
 	if (drawGoals)
 	{
 		circle.setFillColor(sf::Color::Green);
-		PrepareCircleRadius(circle, sim.r);
 		for (size_t i = 0; i != nAgents; i++)
 		{
-			const auto& goalPtr = orgAgents[i]->goalPtr;
-			if (goalPtr)
+			const auto& agent = agents[i];
+			PrepareCircleRadius(circle, agent.radius);
+			if (const auto& goalPtr = agent.par)
 			{
 				const auto& goal = *goalPtr;
 				circle.setPosition(goal.coord);
-				window.draw(circle);
+				w.draw(circle);
 			}
 		}
 	}
@@ -183,20 +199,22 @@ void NavigatorRVO2::draw()
 	// agents
 	for (size_t i = 0; i != nAgents; i++)
 	{
-		PrepareCircleRadius(circle, rvoSim->getAgentRadius(i) / RADIUS_MULTIPLIER_FACTOR);
+		const auto& agent = agents[i];
+		PrepareCircleRadius(circle, agent.radius);
+		//PrepareCircleRadius(circle, rvoSim->getAgentRadius(i));
 		const auto& coord = rvoSim->getAgentPosition(i);
 		auto x = coord.x();
 		auto y = coord.y();
 		coordsThroughTime[i].emplace_back(x, y);
-		//circle.setFillColor(sim.getColor(x, y));
+		circle.setFillColor(getColor(x, y));
 		circle.setPosition({ x, y });
-		window.draw(circle);
+		w.draw(circle);
 	}
 
 	// destination lines
 	for (size_t i = 0; i != nAgents; i++)
 	{
-		const auto& goalPtr = orgAgents[i]->goalPtr;
+		const auto& goalPtr = agents[i].par;
 		if (goalPtr)
 		{
 			const auto& goal = *goalPtr;
@@ -207,18 +225,16 @@ void NavigatorRVO2::draw()
 					sf::Vertex{ ToSFML(rvoSim->getAgentPosition(i)), sf::Color::Magenta},
 					sf::Vertex{ goal.coord, sf::Color::Magenta },
 				};
-				window.draw(vertices, 2, sf::Lines);
+				w.draw(vertices, 2, sf::Lines);
 			}
 		}
 	}
 
 	if (drawTrajectories)
-	{
-		for (auto& coords : coordsThroughTime)
+		for (const auto& coords : coordsThroughTime)
 		{
 			auto n = coords.size();
 			std::vector<sf::Vertex> vertices(n);
-			auto trajectoryColor = sf::Color::Yellow;
 			for (size_t i = 0; i != n; i++)
 			{
 				auto& v = vertices[i];
@@ -227,9 +243,8 @@ void NavigatorRVO2::draw()
 				v.position = { c.x, c.y };
 			}
 			
-			window.draw(vertices.data(), n, sf::LineStrip);
+			w.draw(vertices.data(), n, sf::LineStrip);
 		}
-	}
 }
 
 void NavigatorRVO2::updateTimeStep(float t)
