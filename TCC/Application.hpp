@@ -1,26 +1,32 @@
 #pragma once
 #include "vec2.hpp"
 #include "Simulator2D.hpp"
-#include "ImgViewer.hpp"
+#include "ViewerBase.hpp"
 
-static constexpr float PX_FILTER_SCALE = 8;
 static constexpr float DEFAULT_ZOOM_LEVEL = 0;
 class Application
 {
 	static constexpr auto N_SCROLS_TO_DOUBLE = 4;
 
-	void createSequencer();
+	void tryCreateSequencer();
+
+	sf::Font font;
+
+	static constexpr auto MSG_DURATION = 3.f;
+	sf::Text textPopUpMessages;
+	std::deque<std::pair<sf::String, sf::Time>> warnings;
 
 public:
+	void addMessage(const sf::String& msg);
 
 	float
 		backgroundColor[3],
 		zoomFac,
 		zoomLevel;
 
-	ImgViewer& accessImgViewer();
 	sf::Color getSFBackgroundColor();
 	std::unique_ptr<ViewerBase> viewerBase;
+	std::unique_ptr<Simulator2D> editor;
 	Application(sf::RenderWindow& window);
 	void pollEvent(const sf::Event& event);
 	void draw();
@@ -37,7 +43,7 @@ public:
 		x(png)
 		//x(tga)
 		//x(jpg)
-		x(gif)
+		//x(gif)
 		//x(psd)
 		//x(hdr)
 		//x(pic)
@@ -47,6 +53,8 @@ public:
 
 	int lastPxClickedX, lastPxClickedY; // for moving the view
 	void tryReadImg(const wchar_t* path);
-	void controlO();
+	void openImg();
 	void updateZoomFacAndViewSizeFromZoomLevel(sf::View& view);
+
+	void drawCircles(const std::vector<vec2d>& coords, const std::deque<float>& r, const sf::Color& color);
 };

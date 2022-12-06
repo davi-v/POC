@@ -14,3 +14,8 @@ bool Previewer::drawUI()
 	ImGui::End();
 	return opened;
 }
+
+const sf::Image& Previewer::accessColorMapImg()
+{
+	return *viewerBase.currentImage;
+}

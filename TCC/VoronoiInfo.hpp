@@ -1,21 +1,16 @@
 #pragma once
 #include "Voronoi.hpp"
 #include "Application.hpp"
+#include "CellAreaCalculator.hpp"
 
-struct VoronoiInfo
+struct VoronoiInfo : public CellAreaCalculator
 {
-	void mergePrevious(vec2d& a, double& b, const vec2d& newA, const double& newB);
 	size_t findCell(double x, double y);
-	sf::Rect<double> border;
-	std::vector<vec2d> getTargets();
+	VecCoords getTargets(const VecCoords& coords);
 	Voronoi voronoi;
-	std::vector<vec2d> targets, centroids;
-	std::vector<std::vector<std::pair<double, double>>> prefixCols;
+	VecCoords targets, centroids;
 	std::vector<Cell> voronoiCells;
-	const ImgViewer& imgViewer;
-	VoronoiInfo(const ImgViewer& imgViewer);
-	void update(const std::vector<vec2d>& robotCoords);
-	vec2d getWeightedMeanOfCoords(size_t cell);
-	double getPixelW(unsigned i, unsigned j);
-	std::pair<vec2d, double> getCentroidTimesMassAndMassBelowSegment(vec2d a, const vec2d& b);
+	
+	VoronoiInfo(const ViewerBase& imgViewer);
+	void update(const VecCoords& robotCoords);
 };

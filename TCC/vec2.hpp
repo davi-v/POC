@@ -1,18 +1,29 @@
 #pragma once
 
 template<class T>
+struct vec2_t;
+
+typedef vec2_t<float> vec2f;
+typedef vec2_t<double> vec2d;
+
+template<class T>
 struct vec2_t
 {
 	constexpr vec2_t();
 	constexpr vec2_t(T x, T y);
 	constexpr explicit vec2_t(T val);
-	constexpr vec2_t(const sf::Vector2<T>& v);
+
+	template<class U>
+	constexpr vec2_t(const sf::Vector2<U>& v);
 	T x, y;
 	operator sf::Vector2f() const;
+	operator vec2f() const;
+	operator vec2d() const;
 	operator RVO::Vector2() const;
 	explicit operator bool() const;
 	vec2_t operator-(const vec2_t& other) const;
 	vec2_t operator+(const vec2_t& other) const;
+	vec2_t operator+(T o) const;
 	vec2_t operator*(T other) const;
 	vec2_t operator/(T other) const;
 	vec2_t<T>& operator+=(const vec2_t<T>& other);
@@ -21,9 +32,6 @@ struct vec2_t
 	vec2_t& normalize();
 	bool tryNormalize();
 };
-
-typedef vec2_t<float> vec2f;
-typedef vec2_t<double> vec2d;
 
 template<class T>bool operator==(const vec2_t<T>& a, const vec2_t<T>& b);
 template<class T>vec2_t<T> operator-(const vec2_t<T>& v);
@@ -76,9 +84,10 @@ inline constexpr vec2_t<T>::vec2_t(T val) :
 }
 
 template<class T>
-inline constexpr vec2_t<T>::vec2_t(const sf::Vector2<T>& v) :
-	x(v.x),
-	y(v.y)
+template<class U>
+inline constexpr vec2_t<T>::vec2_t(const sf::Vector2<U>& v) :
+	x((T)v.x),
+	y((T)v.y)
 {
 }
 
@@ -93,6 +102,18 @@ template<class T>
 vec2_t<T>::operator sf::Vector2f() const
 {
 	return { static_cast<float>(x), static_cast<float>(y) };
+}
+
+template<class T>
+inline vec2_t<T>::operator vec2f() const
+{
+	return { (float)x, (float)y };
+}
+
+template<class T>
+inline vec2_t<T>::operator vec2d() const
+{
+	return { (double)x, (double)y };
 }
 
 template<class T>
@@ -117,6 +138,12 @@ template<class T>
 inline vec2_t<T> vec2_t<T>::operator+(const vec2_t& other) const
 {
 	return vec2_t(x + other.x, y + other.y);
+}
+
+template<class T>
+inline vec2_t<T> vec2_t<T>::operator+(T o) const
+{
+	return { x + o, y + o };
 }
 
 template<class T>
@@ -201,4 +228,30 @@ template<class T>
 vec2_t<T> projPointUAxis(const vec2_t<T>& p, const vec2_t<T>& uAxis)
 {
 	return uAxis * dot(p, uAxis);
+}
+
+///// Returns projection of @P in segment formed by points @A and @B
+//template<typename T>
+//inline T projPointSegment(const T& P, const T& A, const T& B)
+//{
+//	auto d = B - A;
+//	return A + dot(P - A, d) / square(d) * d;
+//}
+
+template<class T>
+vec2_t<T> mean(const vec2_t<T>& a, const vec2_t<T>& b)
+{
+	return (a + b) * static_cast<T>(.5);
+}
+
+template<class T>
+T distanceSquared(const vec2_t<T>& c1, const  vec2_t<T>& c2)
+{
+	return square(c1 - c2);
+}
+
+template<class T>
+T distance(const vec2_t<T>& c1, const vec2_t<T>& c2)
+{
+	return sqrt(distanceSquared(c1, c2));
 }

@@ -1,21 +1,42 @@
 #include "Pch.hpp"
+#include "Pch.hpp"
 #include "Application.hpp"
 
-#include <imgui/imgui_internal.h>
+//#include <imgui/imgui_internal.h>
 
+#include "ImgViewer.hpp"
 #include "FileExplorer.hpp"
 #include "OpenCVSFML.hpp"
 #include "Utilities.hpp"
 #include "Sequencer.hpp"
 
-void Application::createSequencer()
+void Application::tryCreateSequencer()
 {
-	//viewerBase = std::make_unique<Sequencer>(*this);
-}
-
-ImgViewer& Application::accessImgViewer()
-{
-	return viewerBase->accessImgViewer();
+	auto dir = TrySelectDirectory(L"Selecione a pasta com as imagens 1.png, 2.png, ... , n.png");
+	auto dirName = sf::String(dir);
+	size_t cnt = 1;
+	SequenceImg seqImgs;
+	while (true)
+	{
+		std::unique_ptr<sf::Image> content;
+		MakeUniquePtr(content);
+		auto& img = *content;
+		static constexpr auto SEP = '\\';
+		if (!img.loadFromFile(dirName + SEP + std::to_wstring(cnt) + ".png"))
+			break;
+		cnt++;
+		seqImgs.emplace_back(std::move(content));
+	}
+	if (cnt == 1)
+	{
+		if (dir.isOk())
+			addMessage(dirName + " sem imagens no formato esperado");
+	}
+	else
+	{
+		editor.reset();
+		viewerBase = std::make_unique<Sequencer>(this, std::move(seqImgs));
+	}
 }
 
 sf::Color Application::getSFBackgroundColor()
@@ -30,9 +51,10 @@ Application::Application(sf::RenderWindow& window) :
 	zoomFac(1),
 	zoomLevel(DEFAULT_ZOOM_LEVEL)
 {
-	//tryReadImg(L"exemplos/listra.png");
-	//tryReadImg(L"exemplos/i4.png");
-	//viewerBase->accessImgViewer().startVoronoiPreview();
+	font.loadFromFile("segoeui.ttf");
+
+	textPopUpMessages.setFont(font);
+	textPopUpMessages.setFillColor(sf::Color::Red);
 }
 
 void Application::pollEvent(const sf::Event& e)
@@ -46,7 +68,12 @@ void Application::pollEvent(const sf::Event& e)
 		case sf::Keyboard::O:
 		{
 			if (e.key.control)
-				controlO();
+			{
+				if (e.key.shift)
+					tryCreateSequencer();
+				else
+					openImg();
+			}
 		}
 		break;
 		}
@@ -56,6 +83,8 @@ void Application::pollEvent(const sf::Event& e)
 
 	if (viewerBase)
 		viewerBase->pollEvent(e);
+	else if (editor)
+		editor->pollEvent(e);
 
 	if (NotHoveringIMGui())
 	{
@@ -142,10 +171,10 @@ void Application::draw()
 		if (ImGui::BeginMenu("File"))
 		{
 			if (ImGui::MenuItem("Open Image", "Ctrl+O"))
-				controlO();
+				openImg();
 
-			if (ImGui::MenuItem("Create Sequence"))
-				createSequencer();
+			if (ImGui::MenuItem("Sequencer", "Ctrl+Shift+O"))
+				tryCreateSequencer();
 
 			if (ImGui::MenuItem("Quit", "Alt+F4"))
 				window.close();
@@ -164,12 +193,68 @@ void Application::draw()
 			ImGui::EndMenu();
 		}
 		if (viewerBase)
-			viewerBase->drawUI();
+		{
+			if (!viewerBase->drawUI())
+				viewerBase.reset();
+		}
+		else
+		{
+			if (editor)
+			{
+				if (!editor->drawUI())
+				{
+					editor.reset();
+				}
+			}
+			else
+			{
+				if (ImGui::MenuItem("Editor"))
+				{
+					MakeUniquePtr(editor, this, DEFAULT_RADIUS);
+					//ImGui::EndMenu();
+				}
+			}
+		}
+
 		ImGui::EndMainMenuBar();
 	}
 	if (viewerBase)
 		viewerBase->draw();
+	else if (editor)
+		editor->draw();
+
 	ImGui::SFML::Render(window);
+
+	// draw UI in screen space
+	sf::View curView = window.getView(); // to restore later
+	sf::View orgView = window.getDefaultView();
+	window.setView(orgView);
+
+	// pop-up messages
+	std::string str;
+	for (auto it = warnings.begin(); it != warnings.end(); )
+	{
+		auto& msg = it->first;
+		auto& ts = it->second;
+		auto now = globalClock.getElapsedTime();
+		if ((now - ts).asSeconds() > MSG_DURATION)
+			it = warnings.erase(it);
+		else
+		{
+			str += msg;
+			str += '\n';
+			it++;
+		}
+	}
+	textPopUpMessages.setString(str);
+	auto bounds = textPopUpMessages.getLocalBounds();
+	textPopUpMessages.setOrigin(bounds.width * 0.5f, 0);
+	auto [w, h] = window.getSize();
+	textPopUpMessages.setPosition(w * 0.5f, h * 0.1f);
+	window.draw(textPopUpMessages);
+
+	window.setView(curView); // restore current view
+
 	window.display();
 }
 
@@ -181,16 +266,19 @@ sf::Vector2f Application::getWindowSizeF()
 
 void Application::tryReadImg(const wchar_t* path)
 {
-	const sf::String s{ path };
+	const sf::String s(path);
 	std::unique_ptr<sf::Image> currentImage;
 	MakeUniquePtr(currentImage);
 	if (currentImage->loadFromFile(s))
-		viewerBase = std::make_unique<ImgViewer>(*this, std::move(currentImage));
+	{
+		viewerBase = std::make_unique<ImgViewer>(this, std::move(currentImage));
+		editor.reset();
+	}
 	else
-		LOG("Error importing image ", path, '\n');
+		addMessage(s + " erro na importação");
 }
 
-void Application::controlO()
+void Application::openImg()
 {
 	if (const auto path = TryOpenFile(L"Choose Image to Load", SFML_SUPPORTED_IMAGE_FORMATS_SIZE, SFML_SUPPORTED_IMAGE_FORMATS))
 		tryReadImg(path);
@@ -200,4 +288,21 @@ void Application::updateZoomFacAndViewSizeFromZoomLevel(sf::View& view)
 {
 	zoomFac = powf(2, static_cast<float>(zoomLevel) / N_SCROLS_TO_DOUBLE);
 	view.setSize(sf::Vector2f(window.getSize()) * zoomFac);
+}
+
+void Application::drawCircles(const std::vector<vec2d>& coords, const std::deque<float>& r, const sf::Color& color)
+{
+	sf::CircleShape circle;
+	circle.setFillColor(color);
+	for (size_t i = 0, lim = coords.size(); i != lim; i++)
+	{
+		PrepareCircleRadius(circle, r[i]);
+		circle.setPosition(coords[i]);
+		window.draw(circle);
+	}
+}
+
+void Application::addMessage(const sf::String& msg)
+{
+	warnings.emplace_back(msg, globalClock.getElapsedTime());
 }

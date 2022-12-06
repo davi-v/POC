@@ -6,8 +6,10 @@
 static constexpr float DEFAULT_TIME_STEP = 1.f / DEFAULT_TICKS_PER_SECOND;
 
 NavigatorInterface::NavigatorInterface() :
+	trajectoryColor(sf::Color::Yellow),
 	drawDestinationLines(false),
 	running(false),
+	tickRate(DEFAULT_TICKS_PER_SECOND),
 	timeStep(DEFAULT_TIME_STEP)
 {
 }
@@ -34,4 +36,32 @@ void NavigatorInterface::loopUpdate()
 			navigatorAccTs -= timeStep;
 		}
 	}
+}
+
+bool NavigatorInterface::drawUI()
+{
+	bool opened = true;
+	if (ImGui::Begin("Navigator", &opened))
+	{
+		if (ImGui::DragInt("Tick Rate", &tickRate, 1.0f, 1, 256, "%d", ImGuiSliderFlags_AlwaysClamp))
+			updateTimeStep(1.f / tickRate);
+		ImGui::SameLine(); HelpMarker("How many ticks per second to run the simulation");
+
+		if (running)
+		{
+			if (ImGui::MenuItem("Pause"))
+				running = false;
+		}
+		else
+		{
+			if (ImGui::MenuItem("Play"))
+				startNavigating();
+		}
+
+		ImGui::Checkbox("Draw Destination Lines", &drawDestinationLines);
+		ColorPicker3U32("Trajectory Color", trajectoryColor);
+		drawUIExtra();
+		ImGui::End();
+	}
+	return opened;
 }

@@ -1,9 +1,12 @@
 #pragma once
 #include "vec2.hpp"
 
-class ElemSelected
+class ElementInteractable
 {
 public:
-	virtual vec2d& accessCoord() = 0;
-	virtual float getRadius() = 0;
+	ElementInteractable* par;
+	float radius;
+	vec2d coord;
+	ElementInteractable(const vec2d& coord, float radius, ElementInteractable* const par = nullptr);
 };
+typedef ElementInteractable Agent, Goal;

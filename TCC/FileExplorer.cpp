@@ -23,3 +23,30 @@ wchar_t* TryWriteFile(const wchar_t* title, int nExts, const wchar_t* const* ext
 		nullptr
 	);
 }
+
+Directory TrySelectDirectory(const wchar_t* title)
+{
+	//return tinyfd_selectFolderDialogW(title, nullptr);
+	return Directory();
+}
+
+Directory::Directory()
+{
+	ret = NFD_PickFolderN(&ptr, nullptr);
+}
+
+Directory::~Directory()
+{
+	if (isOk())
+		NFD_FreePathN(ptr);
+}
+
+bool Directory::isOk() const
+{
+	return ret == NFD_OKAY;
+}
+
+Directory::operator wchar_t* ()
+{
+	return ptr;
+}

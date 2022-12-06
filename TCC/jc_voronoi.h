@@ -1,3 +1,4 @@
+// https://raw.githubusercontent.com/JCash/voronoi/dev/src/jc_voronoi.h
 // Copyright (c) 2015-2019 Mathias Westerdahl
 // For LICENSE (MIT), USAGE or HISTORY, see bottom of file
 
@@ -7,6 +8,7 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <float.h>
 
 #include <assert.h>
 
@@ -16,6 +18,10 @@ extern "C" {
 
 #ifndef JCV_REAL_TYPE
 #define JCV_REAL_TYPE float
+#endif
+
+#ifndef JCV_REAL_TYPE_EPSILON
+#define JCV_REAL_TYPE_EPSILON FLT_EPSILON
 #endif
 
 #ifndef JCV_ATAN2
@@ -38,7 +44,6 @@ extern "C" {
     // Fix for Issue #40
 #define JCV_EDGE_INTERSECT_THRESHOLD 1.0e-10F
 #endif
-
 
     typedef JCV_REAL_TYPE jcv_real;
 
@@ -195,7 +200,7 @@ static inline int jcv_point_less(const jcv_point* pt1, const jcv_point* pt2)
 
 static inline int jcv_point_eq(const jcv_point* pt1, const jcv_point* pt2)
 {
-    return (pt1->y == pt2->y) && (pt1->x == pt2->x);
+    return (fabs(pt1->y - pt2->y) < JCV_REAL_TYPE_EPSILON) && (fabs(pt1->x - pt2->x) < JCV_REAL_TYPE_EPSILON);
 }
 
 static inline int jcv_point_on_box_edge(const jcv_point* pt, const jcv_point* min, const jcv_point* max)
@@ -1232,7 +1237,7 @@ static inline void jcv_rect_inflate(jcv_rect* rect, jcv_real amount)
     rect->max.y += amount;
 }
 
-static int jcv_prune_duplicates(jcv_context_internal* internal, const jcv_rect* rect)
+static int jcv_prune_duplicates(jcv_context_internal* internal, jcv_rect* rect)
 {
     int num_sites = internal->numsites;
     jcv_site* sites = internal->sites;
@@ -1255,26 +1260,16 @@ static int jcv_prune_duplicates(jcv_context_internal* internal, const jcv_rect* 
 
         sites[i - offset] = sites[i];
 
-        if (rect == 0)
-        {
-            jcv_rect_union(&r, &s->p);
-        }
+        jcv_rect_union(&r, &s->p);
     }
-
-    if (rect == 0)
-    {
-        jcv_rect_round(&r);
-        jcv_rect_inflate(&r, 10);
-        internal->rect = r;
+    internal->numsites -= offset;
+    if (rect) {
+        *rect = r;
     }
-    else {
-        internal->rect = *rect;
-    }
-
     return offset;
 }
 
-static int jcv_prune_not_in_shape(jcv_context_internal* internal, const jcv_rect* rect)
+static int jcv_prune_not_in_shape(jcv_context_internal* internal, jcv_rect* rect)
 {
     int num_sites = internal->numsites;
     jcv_site* sites = internal->sites;
@@ -1296,20 +1291,17 @@ static int jcv_prune_not_in_shape(jcv_context_internal* internal, const jcv_rect
 
         sites[i - offset] = sites[i];
 
-        if (rect == 0)
-        {
-            jcv_rect_union(&r, &s->p);
-        }
+        jcv_rect_union(&r, &s->p);
     }
-
+    internal->numsites -= offset;
+    if (rect) {
+        *rect = r;
+    }
     return offset;
 }
 
-void jcv_diagram_generate_useralloc(int num_points, const jcv_point* points, const jcv_rect* rect, const jcv_clipper* clipper, void* userallocctx, FJCVAllocFn allocfn, FJCVFreeFn freefn, jcv_diagram* d)
+static jcv_context_internal* jcv_alloc_internal(int num_points, void* userallocctx, FJCVAllocFn allocfn, FJCVFreeFn freefn)
 {
-    if (d->internal)
-        jcv_diagram_free(d);
-
     // Interesting limits from Euler's equation
     // Slide 81: https://courses.cs.washington.edu/courses/csep521/01au/lectures/lecture10slides.pdf
     // Page 3: https://sites.cs.ucsb.edu/~suri/cs235/Voronoi.pdf
@@ -1331,16 +1323,6 @@ void jcv_diagram_generate_useralloc(int num_points, const jcv_point* points, con
     internal->alloc = allocfn;
     internal->free = freefn;
 
-    internal->beachline_start = jcv_halfedge_new(internal, 0, 0);
-    internal->beachline_end = jcv_halfedge_new(internal, 0, 0);
-
-    internal->beachline_start->left = 0;
-    internal->beachline_start->right = internal->beachline_end;
-    internal->beachline_end->left = internal->beachline_start;
-    internal->beachline_end->right = 0;
-
-    internal->last_inserted = 0;
-
     internal->sites = (jcv_site*)mem;
     mem += sitessize;
 
@@ -1351,6 +1333,27 @@ void jcv_diagram_generate_useralloc(int num_points, const jcv_point* points, con
     tmp.charp = mem;
     internal->eventmem = tmp.voidpp;
 
+    return internal;
+}
+
+void jcv_diagram_generate_useralloc(int num_points, const jcv_point* points, const jcv_rect* rect, const jcv_clipper* clipper, void* userallocctx, FJCVAllocFn allocfn, FJCVFreeFn freefn, jcv_diagram* d)
+{
+    if (d->internal)
+        jcv_diagram_free(d);
+
+    jcv_context_internal* internal = jcv_alloc_internal(num_points, userallocctx, allocfn, freefn);
+
+    internal->beachline_start = jcv_halfedge_new(internal, 0, 0);
+    internal->beachline_end = jcv_halfedge_new(internal, 0, 0);
+
+    internal->beachline_start->left = 0;
+    internal->beachline_start->right = internal->beachline_end;
+    internal->beachline_end->left = internal->beachline_start;
+    internal->beachline_end->right = 0;
+
+    internal->last_inserted = 0;
+
+    int max_num_events = num_points * 2; // beachline can have max 2*n-5 parabolas
     jcv_pq_create(internal->eventqueue, max_num_events, (void**)internal->eventmem);
 
     internal->numsites = num_points;
@@ -1374,29 +1377,38 @@ void jcv_diagram_generate_useralloc(int num_points, const jcv_point* points, con
     }
     internal->clipper = *clipper;
 
-    int offset = jcv_prune_duplicates(internal, rect);
-    num_points -= offset;
+    jcv_rect tmp_rect;
+    tmp_rect.min.x = tmp_rect.min.y = JCV_FLT_MAX;
+    tmp_rect.max.x = tmp_rect.max.y = -JCV_FLT_MAX;
+    jcv_prune_duplicates(internal, &tmp_rect);
 
     // Prune using the test second
     if (internal->clipper.test_fn)
     {
-        internal->clipper.min = internal->rect.min;
-        internal->clipper.max = internal->rect.max;
+        // e.g. used by the box clipper in the test_fn
+        internal->clipper.min = rect ? rect->min : tmp_rect.min;
+        internal->clipper.max = rect ? rect->max : tmp_rect.max;
 
-        offset = jcv_prune_not_in_shape(internal, rect);
-        num_points -= offset;
+        jcv_prune_not_in_shape(internal, &tmp_rect);
 
-        internal->clipper.min = internal->rect.min;
-        internal->clipper.max = internal->rect.max;
+        // The pruning might have made the bounding box smaller
+        if (!rect) {
+            // In the case of all sites being all on a horizontal or vertical line, the
+            // rect area will be zero, and the diagram generation will most likely fail
+            jcv_rect_round(&tmp_rect);
+            jcv_rect_inflate(&tmp_rect, 10);
+
+            internal->clipper.min = tmp_rect.min;
+            internal->clipper.max = tmp_rect.max;
+        }
     }
+
+    internal->rect = rect ? *rect : tmp_rect;
 
     d->min = internal->rect.min;
     d->max = internal->rect.max;
+    d->numsites = internal->numsites;
     d->internal = internal;
-    d->numsites = num_points;
-
-    internal->numsites = num_points;
-    internal->currentsite = 0;
 
     internal->bottomsite = jcv_nextsite(internal);
 

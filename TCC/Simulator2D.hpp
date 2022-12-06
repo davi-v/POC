@@ -1,20 +1,17 @@
 #pragma once
-#include "Agent.hpp"
-#include "Goal.hpp"
 #include "NavigatorInterface.hpp"
 #include "SelectableEdge.hpp"
 #include "Voronoi.hpp"
-
-class ImgViewer;
 
 static constexpr float DEFAULT_RADIUS = 3.f;
 
 #define SIMULATOR_EXT "tcc"
 static constexpr wchar_t const* lFilterPatterns[] = { L"*." SIMULATOR_EXT};
 
-double distanceAgent(const Agent2D& agent, const Goal& goal);
-double distanceSquaredAgent(const Agent2D& agent, const Goal& goal);
-typedef double(*DistanceFunc)(const Agent2D& agent, const Goal& goal);
+typedef double(*DistanceFunc)(const ElementInteractable&, const ElementInteractable&);
+
+double distance1(const ElementInteractable& e1, const ElementInteractable& e2);
+double distance2(const ElementInteractable& e1, const ElementInteractable& e2);
 
 static constexpr auto DEFAULT_AGENT_MAX_VELOCITY = 40.f; // em px/s
 
@@ -22,53 +19,64 @@ typedef std::vector<std::vector<double>> CostMatrix;
 typedef std::vector<std::pair<size_t, size_t>> Edges;
 class Application;
 
-
 class Simulator2D
 {
+	
+	sf::Color
+		colorEdge,
+		colorEdgeMaxDistance,
+		goalColor,
+		defaultAgentColor;
 
+	ElementInteractable* elemHovered;
+	std::list<ElementInteractable>::iterator elemHoveredIt;
+	enum class TypeHovered
+	{
+		Agent,
+		Goal
+	} typeHovered;
+	std::list<ElementInteractable>::iterator
+		agentSel,
+		goalSel;
+
+	void recalculateElemHovered(const vec2d& coordDouble);
+	
 	void updateOutlineColor();
 	void updateOutlineThickness();
 
-	static constexpr auto WARNING_DURATION = 3.f;
-	static const sf::Color DEFAULT_GOAL_COLOR;
 
 	bool canSaveFile();
 	void saveFile();
 	void tryOpenFile();
-	
-	void drawAgents(bool drawEdgeToGoal);
-	void drawGoals();
 
-	bool usingDistancesSquared;
+	bool
+		useDistancesSquared,
+		metricBasedAllocation;
 	void updateDistanceSquaredVars();
 	bool hasAtLeast1Edge();
 
-	void createSelectedNavigator();
-
-	int tickRate;
-
-	sf::Font font;
+	void tryCreateSelectedNavigator();
 
 
-	enum class LeftClickAction
+	enum class AddAction
 	{
-		Select,
-		PlaceAgent,
-		PlaceGoal,
-		AddEdge
-	} leftClickAction;
+		Agent,
+		Goal,
+		Edge
+	} addAction;
 	
 	enum class NavigatorCheckbox
 	{
 		rvo2,
 		CamposPotenciais
 	} curNavigator;
-public:
-	void drawAgent(const Agent2D& agent);
 
+public:
+	void tryUpdateAllocation();
 	
-	
-	std::unique_ptr<NavigatorInterface> navigator;
+	sf::Color getColor(float x, float y) const;
+	sf::Color getColor(const sf::Vector2f& v) const;
+	std::unique_ptr<NavigatorInterface> nav;
 private:
 	typedef bool DistanceFunctionsUnderlyingType; // bool bc only 2
 	enum class DistanceFunctionsEnum : DistanceFunctionsUnderlyingType
@@ -78,8 +86,8 @@ private:
 	} distanceFunctionUsingType;
 	static constexpr DistanceFunc DISTANCE_FUNCTIONS[]
 	{
-		distanceAgent,
-		distanceSquaredAgent
+		distance1,
+		distance2
 	};
 	DistanceFunc distanceFuncUsingCallback;
 
@@ -88,23 +96,19 @@ private:
 
 	// this function updates currentTotalSumOfEachEdgeDistance and currentTotalSumOfEachEdgeDistanceSquared
 	// if needsToUpdateMaxEdge, also updates currentMaxEdge
-	void updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(CostMatrix& costMatrix, bool needsToUpdateMaxEdge);
+	void updateAgentsGoalsAndInternalVariablesWithHungarianAlgorithm(const CostMatrix& costMatrix, bool needsToUpdateMaxEdge);
 
 	// depending on the internal distance function using set, takes each distance squared or not
-	CostMatrix getHungarianCostMatrix();
+	CostMatrix getHungarianCostMatrix() const;
 
-	Edges getEdgesMinimizingBiggestEdgeAndUpdateInternalVariables();
+	Edges updateInternalVariablesMetricEdgesMinimizingBiggestEdge();
 
 	enum class Metric // must be int bc of imgui
 	{
-		MinimizeBiggestEdge,
 		MinimizeTotalSumOfEdges,
+		MinimizeBiggestEdge,
 		MinMaxEdgeThenSum
 	} metric;
-
-	
-	std::deque<std::pair<const char*, sf::Time>> warnings;
-	void addMessage(const char* msg);
 
 	float outlineColor[3]{1, 1, 1};
 
@@ -113,63 +117,47 @@ private:
 
 	double getDistanceSquaredToEdge(const SelectableEdge& e, const vec2d& c);
 
-	sf::Text textPopUpMessages;
-	
-	std::vector<std::unique_ptr<Goal>> goals;
 	bool usingOutline;
 
 	vec2d getCoordDouble(int x, int y);
-	void addEdge(Agent2D& agent, const Goal& goal);
+	void addEdge(Agent& agent, Goal& goal);
 
-	struct LeftClickInterface
+	struct EventInterface
 	{
+		using It = std::list<ElementInteractable>::iterator;
+		std::optional<std::pair<It, TypeHovered>> tryGetElementHovered(const vec2d& coordDouble);
+		vec2d curOff; // distância de onde clicamos até o centro do círculo
+		bool
+			isHoldingLeftClick,
+			isHoldingRightClick;
+
 		Simulator2D& sim;
-		LeftClickInterface(Simulator2D& sim);
+		EventInterface(Simulator2D& sim);
 
 		virtual void draw();
-		virtual bool canMoveView();
+		
 
-		virtual bool pollEvent(const sf::Event& event) = 0;
+		virtual void pollEventExtra(const sf::Event& event) = 0;
+		void pollEvent(const sf::Event& event);
 	};
 
-	class AddEdgeAction : public LeftClickInterface
+	class AddEdgeAction : public EventInterface
 	{
 		void clear();
-		ElemSelected* elemHoveredPtr;
-		enum class Type
-		{
-			Agent,
-			Goal
-		} typeHovered;
-
-		Agent2D* curAgent;
+		ElementInteractable* elemSelected;
+		Agent* curAgent;
 		Goal* curGoal;
 
-		bool goalSelected;
-
-		bool pollEvent(const sf::Event& event) override;
+		void pollEventExtra(const sf::Event& event) override;
 		void draw() override;
 
 	public:
 		AddEdgeAction(Simulator2D& sim);
 	};
 
-	struct SelectAction : LeftClickInterface
+	struct AddItemAction : EventInterface
 	{
-		bool pollEvent(const sf::Event& event) override;
-		void draw() override;
-		bool canMoveView() override;
-		SelectAction(Simulator2D& sim);
-
-		ElemSelected* elemSelected;
-
-		vec2d curOff; // distância de onde clicamos até o centro do círculo
-		bool isHoldingLeftClick;
-	};
-
-	struct AddItemAction : LeftClickInterface
-	{
-		bool pollEvent(const sf::Event& event) override;
+		void pollEventExtra(const sf::Event& event) override;
 		AddItemAction(Simulator2D& sim);
 		bool didNotMoveSinceLastPress;
 
@@ -187,16 +175,15 @@ private:
 		AddGoalAction(Simulator2D& sim);
 	};
 
-	std::unique_ptr<LeftClickInterface> leftClickInterface;
-
-
-
-	static constexpr float N_DIAMETERS_SAFER = 3;
+	std::unique_ptr<EventInterface> eventInterface;
 
 public:
-	std::vector<std::unique_ptr<Agent2D>> agents; // usamos ponteiros para não mudar o endereço do objeto apontado quando o vetor é resized
+	// ponteiros pq por exemplo, a adição das arestas salva ponteiros, e a deleção pode mudar
+	std::list<Agent> agents;
+	std::list<Goal> goals;
+
 	Application& app;
-	Simulator2D(Application& app, float r);
+	Simulator2D(Application* app, float radius);
 	void addAgent(const vec2d& c);
 	void addAgent(float x, float y);
 	void addAgent(const sf::Vector2f& c);
@@ -206,21 +193,13 @@ public:
 	bool drawUI();
 	void draw();
 
-	bool pollEvent(const sf::Event& event);
+	void pollEvent(const sf::Event& event);
 	void updateGraphEdges();
 
-	
-
-	enum class EditModeType
-	{
-		Free,
-		Metric,
-		Navigation
-	} editModeType;
 
 	float percentageOutline = .1f;
 	sf::CircleShape circle;
-	float r;
+	float radius;
 
 	std::vector<vec2d> getAgentsCoordinatesFromNavigator();
 
@@ -229,7 +208,4 @@ public:
 	void clearAll();
 
 	
-
-	ImgViewer& accessImgViewer();
-	//sf::Rect<double> getImgBB(); // bounding box
 };
