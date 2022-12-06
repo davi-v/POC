@@ -59,9 +59,10 @@ bool NavigatorInterface::drawUI()
 		}
 
 		ImGui::Checkbox("Draw Destination Lines", &drawDestinationLines);
-		ColorPicker3U32("Trajectory Color", trajectoryColor);
+		
 		drawUIExtra();
-		ImGui::End();
+
 	}
+	ImGui::End();
 	return opened;
 }

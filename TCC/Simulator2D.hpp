@@ -21,7 +21,8 @@ class Application;
 
 class Simulator2D
 {
-	
+	sf::Clock clock;
+
 	sf::Color
 		colorEdge,
 		colorEdgeMaxDistance,
@@ -32,6 +33,7 @@ class Simulator2D
 	std::list<ElementInteractable>::iterator elemHoveredIt;
 	enum class TypeHovered
 	{
+		None,
 		Agent,
 		Goal
 	} typeHovered;
@@ -135,7 +137,6 @@ private:
 		EventInterface(Simulator2D& sim);
 
 		virtual void draw();
-		
 
 		virtual void pollEventExtra(const sf::Event& event) = 0;
 		void pollEvent(const sf::Event& event);

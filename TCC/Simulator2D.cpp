@@ -98,7 +98,7 @@ void Simulator2D::addEdge(Agent& agent, Goal& goal)
 Simulator2D::Simulator2D(Application* app, float radius) :
 	app(*app),
 	radius(radius),
-	elemHovered(nullptr),
+	typeHovered(TypeHovered::None),
 	usingOutline(false),
 	metricBasedAllocation(true),
 	curNavigator(NavigatorCheckbox::rvo2),
@@ -182,8 +182,9 @@ bool Simulator2D::drawUI()
 
 	if (!nav)
 	{
-		if (ImGui::Button("Navigator"))
-			tryCreateSelectedNavigator();
+		if (!agents.empty())
+			if (ImGui::Button("Navigator"))
+				tryCreateSelectedNavigator();
 	}
 
 	if (ImGui::Checkbox("Metric Based Allocation", &metricBasedAllocation))
@@ -293,6 +294,7 @@ bool Simulator2D::drawUI()
 
 void Simulator2D::draw()
 {
+	const auto dt = clock.restart().asSeconds();
 	if (nav)
 	{
 		nav->loopUpdate();
@@ -300,6 +302,20 @@ void Simulator2D::draw()
 	}
 	else
 	{
+		if (typeHovered == TypeHovered::Agent)
+		{
+			static constexpr float RADIUS_CHANGE_SPEED_PER_SEC = DEFAULT_RADIUS * 2;
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+				elemHovered->radius += RADIUS_CHANGE_SPEED_PER_SEC * dt;
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+			{
+				auto& r = elemHovered->radius -= RADIUS_CHANGE_SPEED_PER_SEC * dt;
+				static constexpr float MIN_RADIUS = 1.f;
+				if (r < MIN_RADIUS)
+					r = MIN_RADIUS;
+			}
+		}
+
 		for (const auto& agent : agents)
 		{
 			if (&agent == elemHovered)
@@ -309,6 +325,21 @@ void Simulator2D::draw()
 			PrepareCircleRadius(circle, static_cast<float>(agent.radius));
 			circle.setPosition(agent.coord);
 			app.window.draw(circle);
+		}
+	
+		for (const auto& goal : goals)
+		{
+			PrepareCircleRadius(circle, goal.radius);
+			if (&goal == elemHovered)
+				circle.setFillColor(sf::Color::Yellow);
+			else
+				circle.setFillColor(goalColor);
+			circle.setPosition(goal.coord);
+			app.window.draw(circle);
+		}
+
+		for (const auto& agent : agents)
+		{
 			if (const auto& goalPtr = agent.par)
 			{
 				const auto& goal = *goalPtr;
@@ -325,17 +356,7 @@ void Simulator2D::draw()
 				app.window.draw(vertices, 2, sf::Lines);
 			}
 		}
-	
-		for (const auto& goal : goals)
-		{
-			PrepareCircleRadius(circle, goal.radius);
-			if (&goal == elemHovered)
-				circle.setFillColor(sf::Color::Yellow);
-			else
-				circle.setFillColor(goalColor);
-			circle.setPosition(goal.coord);
-			app.window.draw(circle);
-		}
+
 	}
 	eventInterface->draw();
 }
@@ -354,7 +375,8 @@ void Simulator2D::clearAll()
 }
 void Simulator2D::recalculateElemHovered(const vec2d& coordDouble)
 {
-	elemHovered = nullptr;
+	typeHovered = TypeHovered::None;
+	elemHovered = nullptr; // usado no draw
 	if (auto opt = eventInterface->tryGetElementHovered(coordDouble))
 	{
 		std::tie(elemHoveredIt, typeHovered) = *opt;
@@ -449,23 +471,21 @@ sf::Color Simulator2D::getColor(const sf::Vector2f& v) const
 
 void Simulator2D::tryCreateSelectedNavigator()
 {
-	if (agents.empty())
-		app.addMessage("Não há agentes");
-	else
+	for (auto& agent : agents)
+		if (const auto& p = agent.par)
+			p->radius = agent.radius;
+	switch (curNavigator)
 	{
-		switch (curNavigator)
-		{
-		case NavigatorCheckbox::rvo2:
-		{
-			nav = std::make_unique<NavigatorRVO2>(*this);
-		}
-		break;
-		case NavigatorCheckbox::CamposPotenciais:
-		{
-			nav = std::make_unique<NavigatorCamposPotenciais>(*this, radius * 6);
-		}
-		break;
-		}
+	case NavigatorCheckbox::rvo2:
+	{
+		nav = std::make_unique<NavigatorRVO2>(*this);
+	}
+	break;
+	case NavigatorCheckbox::CamposPotenciais:
+	{
+		nav = std::make_unique<NavigatorCamposPotenciais>(*this, radius * 6);
+	}
+	break;
 	}
 }
 
@@ -767,23 +787,12 @@ Simulator2D::EventInterface::EventInterface(Simulator2D& sim) :
 
 void Simulator2D::EventInterface::draw()
 {
-	// outline element hovered
-	//if (elemSelected)
-	//{
-	//	const auto& coordSelected = elemSelected->accessCoord();
-	//	sf::CircleShape c;
-	//	c.setFillColor(sf::Color(20, 40, 200, 140));
-	//	c.setPosition(coordSelected);
-	//	PrepareCircleRadius(c, elemSelected->getRadius());
-	//	sim.app.window.draw(c);
-	//}
 }
 
 void Simulator2D::EventInterface::pollEvent(const sf::Event& event)
 {
 	if (sim.nav)
 		return;
-	const auto& elemHovered = sim.elemHovered;
 	switch (event.type)
 	{
 	case sf::Event::MouseButtonPressed:
@@ -798,9 +807,9 @@ void Simulator2D::EventInterface::pollEvent(const sf::Event& event)
 		case sf::Mouse::Right:
 		{
 			isHoldingRightClick = true;
-			if (elemHovered)
+			if (sim.typeHovered != TypeHovered::None)
 			{
-				const auto& coord = elemHovered->coord;
+				const auto& coord = sim.elemHovered->coord;
 				const auto coordDouble = sim.getCoordDouble(event.mouseButton.x, event.mouseButton.y);
 				curOff = coord - coordDouble;
 			}
@@ -832,9 +841,9 @@ void Simulator2D::EventInterface::pollEvent(const sf::Event& event)
 			event.mouseMove.x,
 			event.mouseMove.y
 		);
-		if (isHoldingRightClick && elemHovered) // move agent
+		if (isHoldingRightClick && sim.typeHovered != TypeHovered::None) // move agent
 		{
-			elemHovered->coord = coord + curOff;
+			sim.elemHovered->coord = coord + curOff;
 			sim.tryUpdateAllocation();
 		}
 		else
@@ -847,7 +856,8 @@ void Simulator2D::EventInterface::pollEvent(const sf::Event& event)
 		{
 		case sf::Keyboard::Delete:
 		{
-			if (auto& elemHovered = sim.elemHovered)
+			auto& typeHovered = sim.typeHovered;
+			if (typeHovered != TypeHovered::None)
 			{
 				const auto& it = sim.elemHoveredIt;
 				auto& e = *it;
@@ -861,7 +871,7 @@ void Simulator2D::EventInterface::pollEvent(const sf::Event& event)
 				else
 					sim.goals.erase(it);
 				sim.tryUpdateAllocation();
-				elemHovered = nullptr;
+				typeHovered = TypeHovered::None;
 			}
 
 		}
@@ -939,10 +949,10 @@ void Simulator2D::AddEdgeAction::pollEventExtra(const sf::Event& event)
 		{
 		case sf::Mouse::Left:
 		{
-			if (const auto& elemHovered = sim.elemHovered)
+			const auto& typeHovered = sim.typeHovered;
+			if (typeHovered != TypeHovered::None)
 			{
-				const auto& typeHovered = sim.typeHovered;
-				elemSelected = elemHovered;
+				elemSelected = sim.elemHovered;
 				if (typeHovered == TypeHovered::Agent)
 					curAgent = static_cast<Agent*>(elemSelected);
 				else
