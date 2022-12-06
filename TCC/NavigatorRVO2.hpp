@@ -7,6 +7,7 @@ typedef std::vector<Agent> Agents;
 
 class NavigatorRVO2 : public NavigatorInterface
 {
+	sf::Color agentColor, goalColor, dstLineColor;
 	sf::Color getColor(float x, float y) const;
 	void readd();
 	ViewerBase* viewerBase;

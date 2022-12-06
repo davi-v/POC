@@ -17,6 +17,14 @@ NavigatorRVO2::NavigatorRVO2(ViewerBase& viewerBase, Agents& agents) :
 
 void NavigatorRVO2::drawUIExtra()
 {
+	if (ImGui::CollapsingHeader("Colors"))
+	{
+		ColorPicker3U32("Destination Lines", dstLineColor);
+		ColorPicker3U32("Agent", agentColor);
+		ColorPicker3U32("Goal", goalColor);
+		ColorPicker3U32("Trajectory Color", trajectoryColor);
+	}
+
 	bool any = false;
 	any |= ImGui::InputFloat("neighbourDist", &neighbourDist);
 	any |= ImGui::InputScalar("maxNeighbours", ImGuiDataType_U64, &maxNeighbours);
@@ -51,7 +59,7 @@ sf::Color NavigatorRVO2::getColor(float x, float y) const
 {
 	if (viewerBase)
 		return viewerBase->getColor(x, y);
-	return sf::Color::Blue;
+	return agentColor;
 }
 
 void NavigatorRVO2::readd()
@@ -122,7 +130,10 @@ NavigatorRVO2::NavigatorRVO2(sf::RenderWindow& w, ViewerBase* viewerBase) :
 	w(w),
 	viewerBase(viewerBase),
 	drawGoals(false),
-	drawTrajectories(false)
+	drawTrajectories(false),
+	agentColor(sf::Color::Red),
+	goalColor(sf::Color::Green),
+	dstLineColor(sf::Color::Magenta)
 {
 }
 
@@ -182,7 +193,7 @@ void NavigatorRVO2::draw()
 	const auto nAgents = rvoSim->getNumAgents();
 	if (drawGoals)
 	{
-		circle.setFillColor(sf::Color::Green);
+		circle.setFillColor(goalColor);
 		for (size_t i = 0; i != nAgents; i++)
 		{
 			const auto& agent = agents[i];
@@ -222,8 +233,8 @@ void NavigatorRVO2::draw()
 			{
 				sf::Vertex vertices[2]
 				{
-					sf::Vertex{ ToSFML(rvoSim->getAgentPosition(i)), sf::Color::Magenta},
-					sf::Vertex{ goal.coord, sf::Color::Magenta },
+					sf::Vertex{ ToSFML(rvoSim->getAgentPosition(i)), dstLineColor},
+					sf::Vertex{ goal.coord, dstLineColor },
 				};
 				w.draw(vertices, 2, sf::Lines);
 			}
