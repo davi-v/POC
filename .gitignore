@@ -4,6 +4,7 @@ bin/Debug/*.pdb
 lib/Debug
 lib/Release
 obj
+*.aps
 
 # arquivo muito pesado pro git
 bin/Debug/opencv_world455d.dll

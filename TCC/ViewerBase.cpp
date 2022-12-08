@@ -6,6 +6,7 @@
 #include "PreviewHex.hpp"
 #include "PreviewVoronoi.hpp"
 #include "PreviewPolygonize.hpp"
+#include "SampleRandom.hpp"
 
 ViewerBase::ViewerBase(Application* app, sf::Image* imgPtr) :
 	app{ app },
@@ -181,8 +182,10 @@ void ViewerBase::drawPreviewerSelectorMenu()
 			previewer = std::make_unique<PreviewHex>(*this);
 		if (ImGui::MenuItem("Voronoi"))
 			previewer = std::make_unique<PreviewVoronoi>(*this);
-		if (ImGui::MenuItem("Polygonize"))
+		if (ImGui::MenuItem(POLYGONIZATION))
 			previewer = std::make_unique<PreviewPolygonize>(*this);
+		if (ImGui::MenuItem(RANDOM_SAMPLING))
+			previewer = std::make_unique<SampleRandom>(*this);
 		ImGui::EndMenu();
 	}
 }

@@ -208,7 +208,8 @@
     <ClCompile Include="PreviewHex.cpp" />
     <ClCompile Include="PreviewPolygonize.cpp" />
     <ClCompile Include="PreviewVoronoi.cpp" />
-    <ClCompile Include="Random.cpp" />
+    <ClCompile Include="SampleBased.cpp" />
+    <ClCompile Include="SampleRandom.cpp" />
     <ClCompile Include="SelectableEdge.cpp" />
     <ClCompile Include="Sequencer.cpp" />
     <ClCompile Include="Simulator2D.cpp" />
@@ -236,6 +237,9 @@
     <ClInclude Include="PreviewHex.hpp" />
     <ClInclude Include="PreviewPolygonize.hpp" />
     <ClInclude Include="PreviewVoronoi.hpp" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="SampleBased.hpp" />
+    <ClInclude Include="SampleRandom.hpp" />
     <ClInclude Include="SelectableEdge.hpp" />
     <ClInclude Include="Sequencer.hpp" />
     <ClInclude Include="vec2.hpp" />
@@ -243,7 +247,6 @@
     <ClInclude Include="Hopcroft.hpp" />
     <ClInclude Include="Logger.hpp" />
     <ClInclude Include="Pch.hpp" />
-    <ClInclude Include="Random.hpp" />
     <ClInclude Include="NavigatorInterface.hpp" />
     <ClInclude Include="Simulator2D.hpp" />
     <ClInclude Include="NavigatorRVO2.hpp" />
@@ -253,6 +256,9 @@
     <ClInclude Include="ViewerBase.hpp" />
     <ClInclude Include="Voronoi.hpp" />
     <ClInclude Include="VoronoiInfo.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="TCC.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

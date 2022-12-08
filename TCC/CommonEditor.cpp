@@ -72,20 +72,11 @@ void CommonEditor::pollEvent(const sf::Event& e)
 	}
 }
 
-void CommonEditor::onAdd(float)
-{
-	
-}
-
-void CommonEditor::onDelete(float)
-{
-}
-
 void CommonEditor::onMove()
 {
 }
 
-void CommonEditor::onChangeRadius(float , float )
+void CommonEditor::onChangeRadius()
 {
 }
 
@@ -120,19 +111,18 @@ void CommonEditor::draw()
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Delete))
 			{
 				robotCoords.erase(robotCoords.begin() + circleHovered);
-				auto prevr = robotRadius[circleHovered];
 				robotRadius.erase(robotRadius.begin() + circleHovered);
 				robotRadiusOffs.erase(robotRadiusOffs.begin() + circleHovered);
-				onDelete(prevr);
+				onDelete();
 				clearPointersToRobots();
 			}
 		}
 	}
 
-	drawExtra();
+	drawExtraCommonEditor();
 }
 
-void CommonEditor::drawExtra()
+void CommonEditor::drawExtraCommonEditor()
 {
 }
 
@@ -160,7 +150,7 @@ void CommonEditor::addPoint(const sf::Vector2f& coord)
 	robotCoords.emplace_back(coord.x, coord.y);
 	robotRadiusOffs.emplace_back(1.f);
 	robotRadius.emplace_back(viewerBase.radius);
-	onAdd(robotRadius.back());
+	onAdd();
 }
 
 void CommonEditor::changeRadius(float m)
@@ -169,9 +159,8 @@ void CommonEditor::changeRadius(float m)
 	auto& cur = robotRadiusOffs[circleHovered];
 	cur += DELTA * dt * m;
 	cur = std::clamp(cur, MIN_FRAC, MAX_FRAC);
-	auto prv = robotRadius[circleHovered];
-	const auto& newR = robotRadius[circleHovered] = cur * viewerBase.radius;
-	onChangeRadius(prv, newR);
+	robotRadius[circleHovered] = cur * viewerBase.radius;
+	onChangeRadius();
 }
 
 

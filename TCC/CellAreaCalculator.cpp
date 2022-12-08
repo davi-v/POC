@@ -2,7 +2,7 @@
 #include "CellAreaCalculator.hpp"
 
 CellAreaCalculator::CellAreaCalculator(const ViewerBase& viewerBase) :
-	viewerBase(viewerBase)
+	viewerBase(&viewerBase)
 {
 	const auto& img = *viewerBase.currentImage;
 	const auto [C, R] = img.getSize();
@@ -27,7 +27,7 @@ CellAreaCalculator::CellAreaCalculator(const ViewerBase& viewerBase) :
 
 std::pair<vec2d, double> CellAreaCalculator::getCentroidTimesMassAndMassBelowSegment(vec2d a, const vec2d& b)
 {
-	const auto& img = viewerBase.currentImage;
+	const auto& img = viewerBase->currentImage;
 	const auto size = img->getSize();
 	const int C = (int)size.x, R = size.y;
 
@@ -144,7 +144,7 @@ std::optional<vec2d> CellAreaCalculator::tryGetCenterOfGravity(const Cell& cell)
 	{
 		auto c = cmTotal / mTotal;
 
-		const auto& off = viewerBase.imageOffsetF;
+		const auto& off = viewerBase->imageOffsetF;
 		vec2d coordsOff{ off.x, off.y };
 
 		return c + coordsOff;
@@ -159,7 +159,7 @@ double CellAreaCalculator::getArea(const Cell& cell)
 
 double CellAreaCalculator::getPixelWCheckingRange(unsigned x, unsigned y)
 {
-	const auto [C, R] = viewerBase.currentImage->getSize();
+	const auto [C, R] = viewerBase->currentImage->getSize();
 	if (x >= 0 and x < C and y >= 0 and y < R)
 		return getPixelNotCheckingRange(x, y);
 	return 0.;
@@ -173,7 +173,7 @@ void CellAreaCalculator::mergePrevious(vec2d& c1, double& m1, const vec2d& c2, c
 
 std::pair<vec2d, double> CellAreaCalculator::getCoordsTimesMassAndMass(const Cell& cell)
 {
-	const auto& off = viewerBase.imageOffsetF;
+	const auto& off = viewerBase->imageOffsetF;
 	vec2d coordsOff{ off.x, off.y };
 
 	vec2d cmTotal;
@@ -201,7 +201,7 @@ std::pair<vec2d, double> CellAreaCalculator::getCoordsTimesMassAndMass(const Cel
 
 double CellAreaCalculator::getPixelNotCheckingRange(unsigned x, unsigned y)
 {
-	auto& img = *viewerBase.currentImage;
+	auto& img = *viewerBase->currentImage;
 	auto px = img.getPixel(x, y);
 	double w = px.a / 255.;
 	return w;

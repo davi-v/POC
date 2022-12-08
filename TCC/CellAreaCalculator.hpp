@@ -5,7 +5,7 @@
 class CellAreaCalculator
 {
 	std::vector<std::vector<std::pair<double, double>>> prefixCols;
-	const ViewerBase& viewerBase;
+	const ViewerBase* viewerBase;
 	double getPixelWCheckingRange(unsigned x, unsigned y);
 	std::pair<vec2d, double> getCentroidTimesMassAndMassBelowSegment(vec2d a, const vec2d& b);
 	void mergePrevious(vec2d& a, double& b, const vec2d& newA, const double& newB);

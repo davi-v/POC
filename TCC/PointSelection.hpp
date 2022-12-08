@@ -24,6 +24,7 @@ vec2_t<T> Centroid(const Triangle_t<T>& t, T a2)
 	return CalculateCentroid<T>(t, a2);
 }
 
+// don't call with empty triangles
 std::pair<std::vector<vec2f>, std::deque<std::array<vec2f, 2>>>
 SelectPoints(
 	std::deque<TriangleD>& triangles,

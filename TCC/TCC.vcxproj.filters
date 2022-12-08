@@ -8,9 +8,6 @@
     <ClCompile Include="Simulator2D.cpp">
       <Filter>Simulator2D</Filter>
     </ClCompile>
-    <ClCompile Include="Random.cpp">
-      <Filter>Random</Filter>
-    </ClCompile>
     <ClCompile Include="Utilities.cpp">
       <Filter>Utilities</Filter>
     </ClCompile>
@@ -86,6 +83,12 @@
     <ClCompile Include="ElemSelected.cpp">
       <Filter>ElemSelected</Filter>
     </ClCompile>
+    <ClCompile Include="SampleBased.cpp">
+      <Filter>Previewer\SampleBased</Filter>
+    </ClCompile>
+    <ClCompile Include="SampleRandom.cpp">
+      <Filter>Previewer\SampleRandom</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Hopcroft">
@@ -102,9 +105,6 @@
     </Filter>
     <Filter Include="ElemSelected">
       <UniqueIdentifier>{bd6f6231-09a6-4167-991f-7fcc2e64150a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Random">
-      <UniqueIdentifier>{f64968b6-e830-4712-88fc-d2e0af0049d1}</UniqueIdentifier>
     </Filter>
     <Filter Include="Pch">
       <UniqueIdentifier>{6ec6d48e-35a4-4953-8f6b-b285ed91d1c7}</UniqueIdentifier>
@@ -178,6 +178,15 @@
     <Filter Include="ImgViewer">
       <UniqueIdentifier>{61c56b39-cc8f-4b66-9550-1641f4cf46a6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Windows Icon">
+      <UniqueIdentifier>{93f26b05-767c-4829-9ca8-485d5561a89b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Previewer\SampleBased">
+      <UniqueIdentifier>{78a4f806-0714-406f-95f2-02b16fc3cb71}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Previewer\SampleRandom">
+      <UniqueIdentifier>{f346848c-1e70-404e-bd3b-da294361117b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.hpp">
@@ -185,9 +194,6 @@
     </ClInclude>
     <ClInclude Include="Simulator2D.hpp">
       <Filter>Simulator2D</Filter>
-    </ClInclude>
-    <ClInclude Include="Random.hpp">
-      <Filter>Random</Filter>
     </ClInclude>
     <ClInclude Include="Hopcroft.hpp">
       <Filter>Hopcroft</Filter>
@@ -276,5 +282,19 @@
       <Filter>ImgViewer</Filter>
     </ClInclude>
     <ClInclude Include="Hungarian.hpp" />
+    <ClInclude Include="SampleBased.hpp">
+      <Filter>Previewer\SampleBased</Filter>
+    </ClInclude>
+    <ClInclude Include="SampleRandom.hpp">
+      <Filter>Previewer\SampleRandom</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Windows Icon</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="TCC.rc">
+      <Filter>Windows Icon</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

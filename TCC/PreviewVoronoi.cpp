@@ -15,7 +15,7 @@ void PreviewVoronoi::onImgChangeImpl()
 	recalculateVoronoi();
 }
 
-void PreviewVoronoi::drawExtra()
+void PreviewVoronoi::drawExtraCommonEditor()
 {
 	auto& w = viewerBase.app->window;
 	if (drawRobots)
@@ -161,12 +161,12 @@ void PreviewVoronoi::drawUIImpl()
 	}
 }
 
-void PreviewVoronoi::onAdd(float)
+void PreviewVoronoi::onAdd()
 {
 	recalculateVoronoi();
 }
 
-void PreviewVoronoi::onDelete(float)
+void PreviewVoronoi::onDelete()
 {
 	recalculateVoronoi();
 }

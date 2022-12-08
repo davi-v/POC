@@ -7,7 +7,7 @@ class PreviewVoronoi : public CommonEditor
 {
 	const char* getTitle() override;
 	void onImgChangeImpl() override;
-	void drawExtra() override;
+	void drawExtraCommonEditor() override;
 	void drawUIImpl() override;
 
 	bool drawRobots;
@@ -40,7 +40,7 @@ public:
 
 public:
 	PreviewVoronoi(ViewerBase& viewerBase);
-	void onAdd(float r) override;
-	void onDelete(float r) override;
+	void onAdd() override;
+	void onDelete() override;
 	void onMove() override;
 };

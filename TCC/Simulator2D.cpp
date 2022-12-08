@@ -358,6 +358,25 @@ void Simulator2D::draw()
 		}
 
 	}
+
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Delete))
+		if (typeHovered != TypeHovered::None)
+		{
+			const auto& it = elemHoveredIt;
+			auto& e = *it;
+			if (auto& p = e.par)
+			{
+				p->par = nullptr;
+				p = nullptr;
+			}
+			if (typeHovered == TypeHovered::Agent)
+				agents.erase(it);
+			else
+				goals.erase(it);
+			tryUpdateAllocation();
+			typeHovered = TypeHovered::None;
+		}
+
 	eventInterface->draw();
 }
 
@@ -848,35 +867,6 @@ void Simulator2D::EventInterface::pollEvent(const sf::Event& event)
 		}
 		else
 			sim.recalculateElemHovered(coord);
-	}
-	break;
-	case sf::Event::KeyPressed:
-	{
-		switch (event.key.code)
-		{
-		case sf::Keyboard::Delete:
-		{
-			auto& typeHovered = sim.typeHovered;
-			if (typeHovered != TypeHovered::None)
-			{
-				const auto& it = sim.elemHoveredIt;
-				auto& e = *it;
-				if (auto& p = e.par)
-				{
-					p->par = nullptr;
-					p = nullptr;
-				}
-				if (sim.typeHovered == TypeHovered::Agent)
-					sim.agents.erase(it);
-				else
-					sim.goals.erase(it);
-				sim.tryUpdateAllocation();
-				typeHovered = TypeHovered::None;
-			}
-
-		}
-		break;
-		}
 	}
 	break;
 	}
