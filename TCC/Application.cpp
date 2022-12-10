@@ -39,17 +39,17 @@ void Application::tryCreateSequencer()
 	}
 }
 
-sf::Color Application::getSFBackgroundColor()
+const sf::Color& Application::getSFBackgroundColor()
 {
-	return ToSFMLColor(backgroundColor);
+	return backgroundColor;
 }
 
 Application::Application(sf::RenderWindow& window) :
-	backgroundColor{},
 	window(window),
 	lastPxClickedX(-1),
 	zoomFac(1),
-	zoomLevel(DEFAULT_ZOOM_LEVEL)
+	zoomLevel(DEFAULT_ZOOM_LEVEL),
+	backgroundColor(sf::Color(33, 33, 33))
 {
 	font.loadFromFile("segoeui.ttf");
 
@@ -183,7 +183,7 @@ void Application::draw()
 		}
 		if (ImGui::BeginMenu("Settings"))
 		{
-			ImGui::ColorEdit3("Background Color", backgroundColor);
+			ColorPicker3U32("Background Color", backgroundColor);
 			ImGui::SameLine(); HelpMarker(
 				"Click on the color square to open a color picker.\n"
 				"Click and hold to use drag and drop.\n"
@@ -209,10 +209,7 @@ void Application::draw()
 			else
 			{
 				if (ImGui::MenuItem("Editor"))
-				{
 					MakeUniquePtr(editor, this, DEFAULT_RADIUS);
-					//ImGui::EndMenu();
-				}
 			}
 		}
 

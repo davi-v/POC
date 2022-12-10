@@ -42,7 +42,7 @@ void PreviewHex::draw()
 		if (drawCircleBorderOnly)
 		{
 			circle.setFillColor(sf::Color(0));
-			circle.setOutlineColor(viewerBase.circleColorSFML);
+			circle.setOutlineColor(viewerBase.circleColor);
 			circle.setOutlineThickness(-r * .1f);
 		}
 		circle.setOrigin(r, r);
@@ -151,7 +151,7 @@ const char* PreviewHex::getTitle()
 PreviewHex::PreviewHex(ViewerBase& viewerBase) :
 	Previewer(viewerBase),
 	allocationType(AllocationType::Unlimited),
-	nRobotsBudget(DEFAULT_N_ROBOTS),
+	nRobotsBudget(50),
 	drawHexGridBorder{false},
 	drawGoals{ true },
 	bestFitCircles{ true },
@@ -214,7 +214,6 @@ std::array<sf::Vector2f, 6> PreviewHex::getHexagonCoordsInLocalSpace(int x, int 
 void PreviewHex::onImgChangeImpl()
 {
 	recreateFilterTextureAndColorMap();
-	signalNeedToUpdateHexPlot();
 
 	const auto [X, Y] = viewerBase.currentImage->getSize();
 	const auto rowsF = static_cast<double>(Y);
@@ -222,12 +221,17 @@ void PreviewHex::onImgChangeImpl()
 	const auto proj = projPointUAxis(p, HEX_AXIS[0]);
 	curMaxHexSide = float(std::max(rowsF, length(proj)) / SIN_60);
 
-
 	setHexSmallData();
 	hexSide = std::clamp(hexSide, curMinHexSide, curMaxHexSide);
 
 	onUpdateHexVars();
-	recalculateGoalPositions();
+	calculateBestHexagonSideBasedOnNRobotsAndR();
+	recalculateGoalsAndPlot();
+	if (sim)
+	{
+		sim->clearGoals();
+		sim->addGoalsAndRecalculate(goalsPositions);
+	}
 }
 
 size_t PreviewHex::getNumRobotsAllocated()
@@ -245,7 +249,7 @@ void PreviewHex::drawUIImpl()
 	if (ImGui::CollapsingHeader("Robots"))
 	{
 		ImGui::Checkbox("Draw", &drawGoals);
-		ColorPicker3U32("Color", viewerBase.circleColorSFML);
+		ColorPicker3U32("Color", viewerBase.circleColor);
 
 		ImGui::Checkbox("Border Only", &drawCircleBorderOnly);
 
@@ -264,7 +268,7 @@ void PreviewHex::drawUIImpl()
 	}
 	if (ImGui::CollapsingHeader("Hexagon"))
 	{
-		ImGui::LabelText("Number of Circles Allocated", "%zu", goalsPositions.size());
+		ImGui::LabelText("Number of Goals", "%zu", goalsPositions.size());
 
 		if (ImGui::TreeNode("Grid"))
 		{
@@ -277,8 +281,9 @@ void PreviewHex::drawUIImpl()
 
 		ImGui::Checkbox("Highlight Hexagon Hovered", &highlightHexHovered);
 
-		if (ImGui::SliderFloat("Side", &hexSide, curMinHexSide, curMaxHexSide))
-			updateVarsThatDependOnCircleAndHexagon();
+		if (allocationType == AllocationType::Unlimited)
+			if (ImGui::SliderFloat("Side", &hexSide, curMinHexSide, curMaxHexSide))
+				updateVarsThatDependOnCircleAndHexagon();
 
 		if (ImGui::TreeNode("Bounding Box"))
 		{
@@ -343,7 +348,7 @@ void PreviewHex::drawUIImpl()
 				v.color = offsetLinesColor;
 
 		if (ImGui::Checkbox("Use Only Pixels on Configuration Space", &usePixelsInConfigurationSpaceOnly))
-			recalculateCircleCentersAndPlot();
+			recalculateGoalsAndPlot();
 
 		if (!usePixelsInConfigurationSpaceOnly)
 			if (ImGui::Checkbox("Clip To Configuration Space", &clipToConfigurationSpace))
@@ -353,7 +358,7 @@ void PreviewHex::drawUIImpl()
 		if (allocationType == AllocationType::Unlimited)
 		{
 			if (ImGui::Checkbox("Fit", &bestFitCircles))
-				recalculateCircleCentersAndPlot();
+				recalculateGoalsAndPlot();
 		}
 		else
 			showNRobotsOption();
@@ -367,7 +372,7 @@ void PreviewHex::drawUIImpl()
 		}
 	}
 	else
-		if (ImGui::Button("Initial Placement"))
+		if (ImGui::Button("Initial Placement / Editor"))
 		{
 			drawGoals = false;
 
@@ -378,6 +383,7 @@ void PreviewHex::drawUIImpl()
 				curBudget = nRobotsBudget;
 
 			MakeUniquePtr(sim, viewerBase.app, viewerBase.radius);
+
 			// posição inicial dos agentes
 			size_t cnt = 0;
 			for (int i = 0; i != hexGridXMax; i++)
@@ -387,9 +393,8 @@ void PreviewHex::drawUIImpl()
 						break;
 					sim->addAgent(getHexagonCenterInWorldSpace(i, j));
 				}
-			for (const auto& v : goalsPositions)
-				sim->addGoal({ static_cast<double>(v.x), static_cast<double>(v.y) });
-			sim->updateGraphEdges();
+
+			sim->addGoalsAndRecalculate(goalsPositions);
 		}
 }
 
@@ -656,7 +661,7 @@ void PreviewHex::recalculateGoalPositions()
 	}
 }
 
-void PreviewHex::recalculateCircleCentersAndPlot()
+void PreviewHex::recalculateGoalsAndPlot()
 {
 	recalculateGoalPositions();
 	signalNeedToUpdateHexPlot();
@@ -664,7 +669,7 @@ void PreviewHex::recalculateCircleCentersAndPlot()
 
 void PreviewHex::showNRobotsOption()
 {
-	if (ImGui::InputScalar("Number of Robots", ImGuiDataType_U64, &nRobotsBudget))
+	if (DragScalarMax("Number of Robots", nRobotsBudget, size_t(1000)))
 		calculateBestHexagonSideBasedOnNRobotsAndR();
 }
 
@@ -676,8 +681,9 @@ void PreviewHex::calculateBestHexagonSideBasedOnNRobotsAndR()
 		return;
 	}
 
-	auto m = curMinHexSide;
-	auto M = curMaxHexSide;
+	auto
+		m = curMinHexSide,
+		M = curMaxHexSide;
 	while (M - m > EPS_HEX_BIN_SEARCH)
 	{
 		hexSide = (M + m) * .5f;

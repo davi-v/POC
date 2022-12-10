@@ -1,7 +1,6 @@
 #pragma once
 #include "SampleBased.hpp"
-#include "vec2.hpp"
-#include "PointSelection.hpp"
+#include "Triangle.hpp"
 #include "CGALStuff.hpp"
 
 static constexpr auto POLYGONIZATION = "Polygonization";
@@ -10,17 +9,12 @@ class PreviewPolygonize : public SampleBased
 {
 	void drawUISpecific() override;
 	void samplesExtraDrawUI() override;
+	void initSamplesAndAllocation() override;
 
-	
-	
+	void recalculateSamplesOnly() override;
 
-	void recalculateSamplesAndAllocation() override;
-	
-
-	
-	
-	
-	
+	// don't call with empty triangles
+	std::pair<std::vector<vec2f>, std::deque<std::array<vec2f, 2>>> selectPoints(std::deque<TriangleD>& triangles);
 
 	sf::Color
 		circleColor, polylineColor;
@@ -34,7 +28,6 @@ class PreviewPolygonize : public SampleBased
 		simplifiedTriangleColor,
 		alphaVertColor;
 	std::vector<sf::Vertex> trigs, trigsSimplified;
-	std::deque<TriangleD> trianglesForSample;
 	
 	std::deque<std::array<vec2f, 2>> sampleLines;
 	double alphaShapeRadius;
@@ -71,7 +64,6 @@ class PreviewPolygonize : public SampleBased
 	std::deque<Seg> segments;
 	std::vector<sf::Vertex> segsSimplified;
 
-	void recalculateTriangulations();
 	void updateSimplification();
 	void drawExtraSampleBased() override;
 	const char* getTitle() override;

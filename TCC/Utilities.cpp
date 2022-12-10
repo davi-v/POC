@@ -168,3 +168,44 @@ sf::Vector2f ToSFML(const RVO::Vector2& v)
 {
 	return { v.x(), v.y() };
 }
+
+template<class T>
+auto DragScalarMinMax(const char* str, ImGuiDataType type, T& x, float speed, T min, T max)
+{
+	auto ret = ImGui::DragScalar(str, type, &x, speed, &min, &max);
+	if (x < min)
+		x = min;
+	else if (x > max)
+		x = max;
+	return ret;
+}
+
+bool DragScalarMinMax(const char* str, double& x, float speed, double min, double max)
+{
+	return DragScalarMinMax(str, ImGuiDataType_Double, x, speed, min, max);
+}
+
+bool DragScalarMinMax(const char* str, float& x, float speed, float min, float max)
+{
+	return DragScalarMinMax(str, ImGuiDataType_Float, x, speed, min, max);
+}
+
+template<class T>
+auto DragScalarMax(const char* str, T& x, ImGuiDataType type, float speed, T max)
+{
+	static constexpr T MIN = std::numeric_limits<T>::min();
+	auto ret = ImGui::DragScalar(str, type, &x, speed, &MIN, &max);
+	if (x > max)
+		x = max;
+	return ret;
+}
+
+bool DragScalarMax(const char* str, unsigned& x, float speed, unsigned max)
+{
+	return DragScalarMax(str, x, ImGuiDataType_U32, speed, max);
+}
+
+bool DragScalarMax(const char* str, size_t& x, float speed, size_t max)
+{
+	return DragScalarMax(str, x, ImGuiDataType_U64, speed, max);
+}

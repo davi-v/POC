@@ -40,7 +40,7 @@ public:
 	bool
 		highlightPixelHovered,
 		drawBorder;
-	sf::Color circleColorSFML;
+	sf::Color circleColor;
 
 	ViewerBase(Application* app, sf::Image* imgPtr);
 	virtual ~ViewerBase() = default;

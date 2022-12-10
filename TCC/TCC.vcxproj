@@ -203,7 +203,6 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="PointSelection.cpp" />
     <ClCompile Include="Previewer.cpp" />
     <ClCompile Include="PreviewHex.cpp" />
     <ClCompile Include="PreviewPolygonize.cpp" />
@@ -232,7 +231,6 @@
     <ClInclude Include="NavigatorCamposPotenciais.hpp" />
     <ClInclude Include="nfd.h" />
     <ClInclude Include="OpenCVSFML.hpp" />
-    <ClInclude Include="PointSelection.hpp" />
     <ClInclude Include="Previewer.hpp" />
     <ClInclude Include="PreviewHex.hpp" />
     <ClInclude Include="PreviewPolygonize.hpp" />
@@ -242,6 +240,7 @@
     <ClInclude Include="SampleRandom.hpp" />
     <ClInclude Include="SelectableEdge.hpp" />
     <ClInclude Include="Sequencer.hpp" />
+    <ClInclude Include="Triangle.hpp" />
     <ClInclude Include="vec2.hpp" />
     <ClInclude Include="DefineUtils.hpp" />
     <ClInclude Include="Hopcroft.hpp" />

@@ -8,9 +8,10 @@ SampleBased::SampleBased(ViewerBase& viewerBase) :
 	CommonEditor(viewerBase),
 	drawOrgVertices(false),
 	orgVertexColor(sf::Color(34, 33, 169)),
+	goalColor(sf::Color::Green),
 	highlightColor(sf::Color::Yellow),
 	cellAreaCalculator(viewerBase),
-	ratioMinArea(.5),
+	ratioMinArea(.8),
 	pointCount(10),
 	limitedNSamples(DEFAULT_N_SAMPLES),
 	samplePointRadius(.5),
@@ -25,6 +26,7 @@ SampleBased::SampleBased(ViewerBase& viewerBase) :
 	robotsSeed(0),
 	nRobots(10)
 {
+	viewerBase.circleColor = sf::Color::Red;
 	recalculateCirclePointCount();
 }
 
@@ -32,7 +34,7 @@ void SampleBased::drawExtraSampleBased()
 {
 }
 
-void SampleBased::recalculateGreedyMethod()
+void SampleBased::recalculateTargetsGreedyMethod()
 {
 	const auto n = robotCoords.size();
 
@@ -128,14 +130,8 @@ void SampleBased::drawUIImpl()
 				vmax = 50;
 			ImGui::SliderScalar("Radius", ImGuiDataType_Float, &samplePointRadius, &vmin, &vmax, "%.3f", 0);
 		}
-		static constexpr size_t
-			VMAX = 1000,
-			STEP = 1;
-		if (ImGui::InputScalar("Number of Samples", ImGuiDataType_U64, &limitedNSamples, &STEP))
-		{
-			limitedNSamples = std::min(limitedNSamples, VMAX);
-			recalculateSamplesAndAllocation();
-		}
+		if (DragScalarMax("Number of Samples", limitedNSamples, size_t(100000)))
+			recalculateSamplesOnly();
 		ColorPicker3U32("Color##1", sampleColor);
 
 		samplesExtraDrawUI();
@@ -145,8 +141,8 @@ void SampleBased::drawUIImpl()
 	{
 		ImGui::Checkbox("Draw Robots", &drawRobots);
 		ImGui::Checkbox("Draw Goals", &drawGoals);
-		ColorPicker3U32("Color", robotColor);
-		ColorPicker3U32("Goals Color", viewerBase.circleColorSFML);
+		ColorPicker3U32("Robots Color", viewerBase.circleColor);
+		ColorPicker3U32("Goals Color", goalColor);
 
 		ImGui::Checkbox("Fill Area", &fillArea);
 
@@ -164,6 +160,8 @@ void SampleBased::drawUIImpl()
 				const auto r = (double)robotRadius[circleHovered];
 				const auto cell = getCellFromCoordAndRadius(robotCoords[circleHovered], r);
 				double area = cellAreaCalculator.getArea(cell);
+				if (area <= 0) // == tbm pro caso de -0
+					area = 0;
 				ImGui::Text("Hovered Polygon Area: %.3f", area);
 				ImGui::Text("Hovered Polygon Area Ratio: %.3f", area / getPolArea(r));
 			}
@@ -172,13 +170,8 @@ void SampleBased::drawUIImpl()
 
 	if (ImGui::CollapsingHeader("Allocation"))
 	{
-		{
-			static constexpr double
-				vmin = 0,
-				vmax = 1;
-			if (ImGui::SliderScalar("Ratio Min Area", ImGuiDataType_Double, &ratioMinArea, &vmin, &vmax))
-				recalculateGreedyMethod();
-		}
+		if (DragScalarMinMax("Ratio Min Area", ratioMinArea, .01f, 0., 1.))
+			recalculateTargetsGreedyMethod();
 	}
 
 	if (ImGui::CollapsingHeader("Dump/Import Allocation Graph"))
@@ -201,21 +194,23 @@ void SampleBased::drawUIImpl()
 	if (nav)
 	{
 		if (!nav->drawUI())
+		{
+			saveCoordsFromNav();
 			nav.reset();
+		}
 	}
 	else
 	{
 		if (ImGui::CollapsingHeader("Random Initial Robots"))
 		{
 			static constexpr unsigned
-				MIN_N = 0,
-				MAX_N = 100;
+				MAX_N = 1000;
 			static constexpr double
 				MIN_R = .5,
 				MAX_R = 100;
-			ImGui::DragScalar("Number of Robots", ImGuiDataType_U32, &nRobots, 1.f, &MIN_N, &MAX_N);
-			ImGui::DragScalar("Min R", ImGuiDataType_Double, &minR, 1.f, &MIN_R, &maxR);
-			ImGui::DragScalar("Max R", ImGuiDataType_Double, &maxR, 1.f, &minR, &MAX_R);
+			DragScalarMax("Number of Robots", nRobots, MAX_N);
+			DragScalarMinMax("Min R", minR, MIN_R, maxR);
+			DragScalarMinMax("Max R", maxR, minR, MAX_R);
 			ImGui::InputScalar("Seed##2", ImGuiDataType_U32, &robotsSeed);
 			if (ImGui::MenuItem("Generate"))
 			{
@@ -252,45 +247,17 @@ void SampleBased::drawUIImpl()
 						doRow(lenRow);
 					doRow(mod);
 				}
-				recalculateGreedyMethod();
+				recalculateTargetsGreedyMethod();
 			}
 		}
 		if (ImGui::Button("Navigator"))
 		{
+			drawRobots = drawGoals = false;
 			const auto n = robotCoords.size();
 			if (n)
-			{
-				goals.clear();
-				const auto nGoals = std::count_if(targets.begin(), targets.end(), [](size_t v)
-					{
-						return v != -1;
-					});
-				goals.reserve(nGoals);
-				for (size_t i = 0; i != n; i++)
-				{
-					if (targets[i] != -1)
-						goals.emplace_back(samples[targets[i]], robotRadius[i]);
-				}
-
-				agents.clear();
-				agents.reserve(n);
-				auto curGPtr = goals.data();
-				for (size_t i = 0; i != n; i++)
-				{
-					Goal* gPtr;
-					const auto& t = targets[i];
-					if (t == -1)
-						gPtr = nullptr;
-					else
-						gPtr = curGPtr++;
-					agents.emplace_back(robotCoords[i], robotRadius[i], gPtr);
-				}
 				recreateNav();
-			}
 			else
-			{
 				viewerBase.app->addMessage("Não há robôs");
-			}
 		}
 	}
 
@@ -301,6 +268,13 @@ void SampleBased::drawUISpecific()
 {
 }
 
+void SampleBased::saveCoordsFromNav()
+{
+	const auto coords = nav->getAgentPositions();
+	const auto n = robotCoords.size();
+	for (size_t i = 0; i != n; i++)
+		robotCoords[i] = coords[i];
+}
 
 void SampleBased::dumpGraph()
 {
@@ -421,7 +395,7 @@ void SampleBased::drawExtraCommonEditor()
 	if (drawRobots)
 	{
 		if (fillArea)
-			viewerBase.app->drawCircles(robotCoords, robotRadius, robotColor);
+			viewerBase.app->drawCircles(robotCoords, robotRadius, viewerBase.circleColor);
 		else
 		{
 			const auto n = robotCoords.size();
@@ -434,7 +408,7 @@ void SampleBased::drawExtraCommonEditor()
 				if (highlightHovered && circleHovered == i)
 					color = highlightColor;
 				else
-					color = robotColor;
+					color = viewerBase.circleColor;
 				for (size_t j = 0; j != pointCount; j++)
 				{
 					auto& v = vert[j];
@@ -458,7 +432,7 @@ void SampleBased::drawExtraCommonEditor()
 			{
 				const auto& goal = samples[target];
 				PrepareCircleRadius(c, robotRadius[i]);
-				c.setFillColor(viewerBase.getColor(goal));
+				c.setFillColor(goalColor);
 				c.setPosition(goal);
 				w.draw(c);
 			}
@@ -476,15 +450,19 @@ void SampleBased::drawExtraCommonEditor()
 
 void SampleBased::onImgChangeImpl()
 {
-	cellAreaCalculator = CellAreaCalculator(viewerBase);
-	recalculateSamplesAndAllocation();
-	recalculateGreedyMethod();
+	cellAreaCalculator = viewerBase;
+	initSamplesAndAllocation();
+	recalculateTargetsGreedyMethod();
 	if (nav)
-		recreateNav();
+	{
+		saveCoordsFromNav();
+		nav->agents = recalculateGoalsGetAgents();
+	}
 }
 
 void SampleBased::recreateNav()
 {
+	const auto agents = recalculateGoalsGetAgents();
 	MakeUniquePtr(nav, viewerBase, agents);
 }
 
@@ -504,18 +482,47 @@ bool SampleBased::shouldAddEdge(size_t i, size_t j) const
 	return distanceSquared(p1, p2) < square(r1 + r2); // não colidindo com o outro robô
 }
 
+Agents SampleBased::recalculateGoalsGetAgents()
+{
+	goals.clear();
+	const auto nGoals = std::count_if(targets.begin(), targets.end(), [](size_t v)
+		{
+			return v != -1;
+		});
+	goals.reserve(nGoals);
+	const auto n = robotCoords.size();
+	for (size_t i = 0; i != n; i++)
+		if (targets[i] != -1)
+			goals.emplace_back(samples[targets[i]], robotRadius[i]);
+
+	std::vector<Agent> agents;
+	agents.reserve(n);
+	auto curGPtr = goals.data();
+	for (size_t i = 0; i != n; i++)
+	{
+		Goal* gPtr;
+		const auto& t = targets[i];
+		if (t == -1)
+			gPtr = nullptr;
+		else
+			gPtr = curGPtr++;
+		agents.emplace_back(robotCoords[i], robotRadius[i], gPtr);
+	}
+	return agents;
+}
+
 void SampleBased::onAdd()
 {
-	recalculateGreedyMethod();
+	recalculateTargetsGreedyMethod();
 }
 
 void SampleBased::onDelete()
 {
-	recalculateGreedyMethod();
+	recalculateTargetsGreedyMethod();
 }
 
 
 void SampleBased::onChangeRadius()
 {
-	recalculateGreedyMethod();
+	recalculateTargetsGreedyMethod();
 }

@@ -22,7 +22,9 @@ public:
 	float speed;
 	float tickOff;
 	float dt;
-	double maxStep;
+	double
+		maxStep,
+		invMaxStep;
 	sf::Clock clk;
 	void tick();
 	void recalculateMaxStep();

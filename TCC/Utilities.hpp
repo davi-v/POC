@@ -89,3 +89,21 @@ sf::Vector2f ToSFML(const vec2f& v);
 void PrepareCircleRadius(sf::CircleShape& circle, float r);
 
 sf::Vector2f ToSFML(const RVO::Vector2& v);
+
+bool DragScalarMax(const char* str, unsigned& x, float speed, unsigned max);
+bool DragScalarMax(const char* str, size_t& x, float speed, size_t max);
+
+bool DragScalarMinMax(const char* str, double& x, float speed, double min, double max);
+bool DragScalarMinMax(const char* str, float& x, float speed, float min, float max);
+
+template<class T>
+auto DragScalarMax(const char* str, T& x, T max)
+{
+	return DragScalarMax(str, x, 1.f, max);
+}
+
+template<class T>
+auto DragScalarMinMax(const char* str, T& x, T min, T max)
+{
+	return DragScalarMinMax(str, x, 1.f, min, max);
+}

@@ -90,7 +90,7 @@ class PreviewHex : public Previewer
 
 	void recalculateGoalPositions(); // should be called after updateVarsThatDependOnHexagonSideAndCircleRadius, since updateVarsThatDependOnHexagonSideAndCircleRadius can modify hexGridXMax and hexGridYMax
 
-	void recalculateCircleCentersAndPlot();
+	void recalculateGoalsAndPlot();
 
 	// in local coordinates
 	std::array<sf::Vector2f, 6> getHexagonOffsets();
@@ -105,7 +105,6 @@ class PreviewHex : public Previewer
 	const char* getTitle() override;
 
 	static constexpr float EPS_HEX_BIN_SEARCH = .1f;
-	static constexpr size_t DEFAULT_N_ROBOTS = 100;
 
 	bool
 		drawGoals,

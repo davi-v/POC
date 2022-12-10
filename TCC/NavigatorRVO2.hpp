@@ -7,45 +7,41 @@ typedef std::vector<Agent> Agents;
 
 class NavigatorRVO2 : public NavigatorInterface
 {
-	sf::Color agentColor, goalColor, dstLineColor;
-	sf::Color getColor(float x, float y) const;
-	void readd();
+	void setObservationRadii();
+
+	sf::Color
+		agentColor,
+		goalColor,
+		dstLineColor;
 	ViewerBase* viewerBase;
 	sf::RenderWindow& w;
-	void dumpCSV();
-
-	std::vector<vec2d> getAgentPositions() override;
-
-	void addAgentImpl(const Agent& agent);
-
+public:
 	Agents agents;
-
+private:
 	bool
+		usingPredefinedObservationRadius,
 		drawGoals,
 		drawTrajectories;
-
 	std::vector<std::vector<vec2f>> coordsThroughTime;
-
-	static constexpr float DEFAULT_TIME_HORIZON = 60;
-	static constexpr float DEFAULT_TIME_HORIZON_OBST = DEFAULT_TIME_HORIZON;
-
-	float neighbourDist;
-	size_t maxNeighbours = 1;
-	float timeHorizon = DEFAULT_TIME_HORIZON;
-	float timeHorizonObst = DEFAULT_TIME_HORIZON_OBST;
-
-	float maxSpeed = DEFAULT_AGENT_MAX_VELOCITY;
-
-	float accel = maxSpeed / .4f;
-	float decel = maxSpeed / .4f;
-
+	size_t maxNeighbours;
+	float
+		maxRadius,
+		neighbourDist,
+		timeHorizon,
+		maxSpeed,
+		accel,
+		decel;
 	std::unique_ptr<RVO::RVOSimulator> rvoSim;
 
+	sf::Color getColor(float x, float y) const;
+	void readd();
+	void dumpCSV();
+	void addAgentImpl(const Agent& agent);
 	void init();
-
 	NavigatorRVO2(sf::RenderWindow& w, ViewerBase* viewerBase);
 
 public:
+	std::vector<vec2d> getAgentPositions() override;
 	void restart();
 	void addAgent(const Agent& agent) override;
 	void tick() override;
@@ -55,7 +51,7 @@ public:
 
 	// não chame com agents vazio
 	NavigatorRVO2(Simulator2D& sim);
-	NavigatorRVO2(ViewerBase& viewerBase, Agents& agents);
+	NavigatorRVO2(ViewerBase& viewerBase, const Agents& agents);
 
 	template<class C>
 	NavigatorRVO2(sf::RenderWindow& w, ViewerBase* v, const C& a) :

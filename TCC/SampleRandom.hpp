@@ -6,7 +6,8 @@ static constexpr auto RANDOM_SAMPLING = "Random Sampling";
 class SampleRandom : public SampleBased
 {
 	void samplesExtraDrawUI() override;
-	void recalculateSamplesAndAllocation() override;
+	void initSamplesAndAllocation() override;
+	void recalculateSamplesOnly() override;
 
 	unsigned
 		samplesSeed;

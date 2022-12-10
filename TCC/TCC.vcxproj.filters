@@ -62,9 +62,6 @@
     <ClCompile Include="PreviewPolygonize.cpp">
       <Filter>Previewer\PreviewPolygonize</Filter>
     </ClCompile>
-    <ClCompile Include="PointSelection.cpp">
-      <Filter>Previewer\PreviewPolygonize\PointSelection</Filter>
-    </ClCompile>
     <ClCompile Include="CGALStuff.cpp">
       <Filter>Previewer\PreviewPolygonize\CGALStuff</Filter>
     </ClCompile>
@@ -159,9 +156,6 @@
     </Filter>
     <Filter Include="Previewer\PreviewPolygonize">
       <UniqueIdentifier>{a1a9b757-dde5-4f9c-a41a-9787a9cce5e7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Previewer\PreviewPolygonize\PointSelection">
-      <UniqueIdentifier>{5dcf9a42-a1bb-443f-bc60-528c049e87fe}</UniqueIdentifier>
     </Filter>
     <Filter Include="Previewer\PreviewPolygonize\CGALStuff">
       <UniqueIdentifier>{46acdbdb-3db8-41bb-af3a-881d8c5d6c6a}</UniqueIdentifier>
@@ -263,9 +257,6 @@
     <ClInclude Include="PreviewPolygonize.hpp">
       <Filter>Previewer\PreviewPolygonize</Filter>
     </ClInclude>
-    <ClInclude Include="PointSelection.hpp">
-      <Filter>Previewer\PreviewPolygonize\PointSelection</Filter>
-    </ClInclude>
     <ClInclude Include="CGALStuff.hpp">
       <Filter>Previewer\PreviewPolygonize\CGALStuff</Filter>
     </ClInclude>
@@ -291,6 +282,7 @@
     <ClInclude Include="resource.h">
       <Filter>Windows Icon</Filter>
     </ClInclude>
+    <ClInclude Include="Triangle.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="TCC.rc">

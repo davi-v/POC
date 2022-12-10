@@ -129,6 +129,11 @@ void Simulator2D::addAgent(float x, float y)
 	addAgent(vec2d{ static_cast<double>(x), static_cast<double>(y) });
 }
 
+void Simulator2D::clearGoals()
+{
+	goals.clear();
+}
+
 void Simulator2D::addGoal(const vec2d& c)
 {
 	goals.emplace_back(c, radius);
@@ -468,6 +473,13 @@ bool Simulator2D::hasAtLeast1Edge()
 {
 	auto nGoals = goals.size();
 	return agents.size() >= nGoals && nGoals;
+}
+
+void Simulator2D::addGoalsAndRecalculate(const std::vector<sf::Vector2f>& goalsPositions)
+{
+	for (const auto& v : goalsPositions)
+		addGoal({ static_cast<double>(v.x), static_cast<double>(v.y) });
+	updateGraphEdges();
 }
 
 void Simulator2D::tryUpdateAllocation()

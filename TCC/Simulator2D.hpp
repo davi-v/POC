@@ -74,6 +74,7 @@ class Simulator2D
 	} curNavigator;
 
 public:
+	void addGoalsAndRecalculate(const std::vector<sf::Vector2f>& goalsPositions);
 	void tryUpdateAllocation();
 	
 	sf::Color getColor(float x, float y) const;
@@ -187,6 +188,7 @@ public:
 	Simulator2D(Application* app, float radius);
 	void addAgent(const vec2d& c);
 	void addAgent(float x, float y);
+	void clearGoals();
 	void addAgent(const sf::Vector2f& c);
 	void addGoal(const vec2d& coord);
 	

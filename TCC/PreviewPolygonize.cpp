@@ -84,24 +84,14 @@ void PreviewPolygonize::drawUISpecific()
 
 		if (helper("0", "Alpha Shape", alphaVertices.size(), trigsOrgCnt, drawAlphaVertices, drawAlphaShapePolylines, drawTrigs, orgTriangleColor, trigs))
 		{
-			{
-				static constexpr double
-					vmin = .5,
-					vmax = 100000.;
-				if (ImGui::DragScalar("Radius", ImGuiDataType_Double, &alphaShapeRadius, 1.f, &vmin, &vmax, "%.3f", 0))
-					recalculateTriangulations();
-			}
+			if (DragScalarMinMax("Radius##alpha", alphaShapeRadius, .5, 100000.))
+				initSamplesAndAllocation();
 		}
 
 		if (helper("1", "Simplification", verticesSimplified.size(), trigsSimplifiedCnt, drawVerticesSimplified, drawSimplifiedPolylines, drawTrigsSimplified, simplifiedTriangleColor, trigsSimplified))
 		{
-			{
-				static constexpr double
-					vmin = .01,
-					vmax = 1;
-				if (ImGui::DragScalar("Simplification Ratio", ImGuiDataType_Double, &simplificationRatio, .01f, &vmin, &vmax, "%.3f", 0))
-					updateSimplification();
-			}
+			if (DragScalarMinMax("Simplification Ratio", simplificationRatio, 0.01f,  .01, 1.))
+				updateSimplification();
 		}
 
 		ImGui::Text("Components: %zu", nComponents);
@@ -117,28 +107,11 @@ void PreviewPolygonize::samplesExtraDrawUI()
 			"QuadCentroid"
 	};
 	if (ImGui::Combo("Sample Mode", reinterpret_cast<int*>(&sampleMode), SAMPLE_MODES, IM_ARRAYSIZE(SAMPLE_MODES)))
-		recalculateSamplesAndAllocation();
+		recalculateSamplesOnly();
 	ImGui::Checkbox("Draw Sampled Triangles", &drawExtraSampleLines);
 }
 
-void PreviewPolygonize::recalculateSamplesAndAllocation()
-{
-	if (trigsSimplifiedCnt)
-	{
-		trianglesForSample.resize(trigsSimplifiedCnt);
-		for (size_t i = 0, j = 0; i != trigsSimplifiedCnt; i++, j += 3)
-			for (size_t x = 0; x != 3; x++)
-			{
-				const auto& c = trigsSimplified[j + x].position;
-				trianglesForSample[i][x] = { (double)c.x, (double)c.y };
-			}
-		std::tie(samples, sampleLines) = SelectPoints(trianglesForSample, limitedNSamples, sampleMode == SampleMode::QuadCentroid);
-
-		recalculateGreedyMethod();
-	}
-}
-
-void PreviewPolygonize::recalculateTriangulations()
+void PreviewPolygonize::initSamplesAndAllocation()
 {
 	const auto& imgViewer = viewerBase;
 	const auto& img = *imgViewer.currentImage;
@@ -214,7 +187,24 @@ void PreviewPolygonize::recalculateTriangulations()
 		simplificationRatio = 1.;
 	else
 		simplificationRatio = (double)DEFAULT_N_SAMPLES / trigsOrgCnt;
+
 	updateSimplification();
+}
+
+void PreviewPolygonize::recalculateSamplesOnly()
+{
+	if (trigsSimplifiedCnt)
+	{
+		std::deque<TriangleD> trianglesForSample(trigsSimplifiedCnt);
+		for (size_t i = 0, j = 0; i != trigsSimplifiedCnt; i++, j += 3)
+			for (size_t x = 0; x != 3; x++)
+			{
+				const auto& c = trigsSimplified[j + x].position;
+				trianglesForSample[i][x] = { (double)c.x, (double)c.y };
+			}
+		std::tie(samples, sampleLines) = selectPoints(trianglesForSample);
+		recalculateTargetsGreedyMethod();
+	}
 }
 
 void PreviewPolygonize::updateSimplification()
@@ -306,7 +296,7 @@ void PreviewPolygonize::updateSimplification()
 		}
 	}
 
-	recalculateSamplesAndAllocation();
+	recalculateSamplesOnly();
 }
 
 void PreviewPolygonize::drawExtraSampleBased()
@@ -387,5 +377,129 @@ PreviewPolygonize::PreviewPolygonize(ViewerBase& viewerBase) :
 	drawExtraSampleLines(false),
 	sampleMode(SampleMode::TrigCentroid)
 {
-	recalculateTriangulations();
+	initSamplesAndAllocation();
+}
+
+std::pair<std::vector<vec2f>, std::deque<std::array<vec2f, 2>>> PreviewPolygonize::selectPoints(
+	std::deque<TriangleD>& triangles)
+{
+	std::vector<vec2f> samples(limitedNSamples);
+	std::deque<std::array<vec2f, 2>> lines;
+	using T = TriangleD::type;
+	struct P
+	{
+		P(T a2, size_t index) :
+			a2(a2),
+			index(index)
+		{
+
+		}
+		T a2;
+		size_t index;
+	};
+	auto cmp = [&](const P& a, const P& b)
+	{
+		return a.a2 < b.a2;
+	};
+	std::priority_queue<P, std::vector<P>, decltype(cmp)> q(cmp);
+	for (size_t i = 0, len = triangles.size(); i != len; i++)
+	{
+		const auto& t = triangles[i];
+		auto a2 = TwiceAreaPolygonSigned<T>(t);
+		q.emplace(a2, i);
+	}
+	for (size_t i = 0; i != limitedNSamples; i++)
+	{
+		const auto& e = q.top();
+		const auto& index = e.index;
+		const auto& t = triangles[index];
+		const auto& a2 = e.a2;
+		const auto trigC = Centroid(t, a2);
+		const auto& curSample = samples[i] = (vec2f)trigC;
+		q.pop();
+		std::array<vec2_t<T>, 3> mids;
+		for (size_t i = 0; i != 3; i++)
+		{
+			mids[i] = mean(t[i], t[(i + 1) % 3]);
+			lines.emplace_back(std::array<vec2f, 2>{ (vec2f)trigC, (vec2f)mids[i] });
+		}
+
+		auto addNewT = [&](const TriangleD& newT)
+		{
+			auto a2 = TwiceAreaPolygonSigned<T>(newT);
+			assert(a2 > 0);
+			auto newIndex = triangles.size();
+			q.emplace(a2, newIndex);
+			triangles.emplace_back(newT);
+		};
+
+		if (sampleMode == SampleMode::QuadCentroid)
+		{
+			for (size_t i = 0; i != 3; i++)
+			{
+				const auto
+					& ml = mids[i],
+					& m = t[i],
+					& mr = mids[(i + 2) % 3];
+
+				const auto cell = std::array<vec2_t<T>, 4>{ trigC, mr, m, ml };
+				assert(cross(mr - trigC, m - trigC) > 0);
+				assert(cross(m - trigC, ml - trigC) > 0);
+				assert(cross(mr - trigC, ml - trigC) > 0);
+				const auto aCell = TwiceAreaPolygonSigned<T>(cell);
+
+#ifdef _DEBUG
+				// quando usando float, deu erro em algum(ns) dos asserts, então pq não deixar aqui
+				for (int i = 0; i != 4; i++)
+				{
+					auto& a = cell[i];
+					auto& b = cell[(i + 1) % 4];
+					auto& c = cell[(i + 2) % 4];
+					assert(cross(b - a, c - a) > 0);
+				}
+				assert(aCell > 0);
+#endif
+
+				const auto cCell = CalculateCentroid<T>(cell, aCell);
+
+#ifdef _DEBUG
+				for (int i = 0; i != 4; i++)
+				{
+					auto& a = cell[i];
+					auto& b = cell[(i + 1) % 4];
+					assert(cross(cCell - a, cCell - b) > 0);
+				}
+#endif
+
+				auto add = [&](auto& a, auto& b)
+				{
+					lines.emplace_back(std::array<vec2f, 2>{ (vec2f)cCell, (vec2f)a });
+					auto newT = std::array<vec2_t<T>, 3>{ cCell, a, b };
+					assert(cross(a - cCell, b - cCell) > 0);
+
+					addNewT(newT);
+				};
+				// calculate new 4 triangles
+				add(m, ml);
+				add(ml, trigC);
+				add(trigC, mr);
+				add(mr, m);
+			}
+		}
+		else
+		{
+			for (size_t i = 0; i != 3; i++)
+			{
+				const auto
+					& t0 = t[i],
+					& t1 = t[(i + 1) % 3],
+					& m = mids[i];
+				lines.emplace_back(std::array<vec2f, 2>{ curSample, (vec2f)mids[i] });
+				lines.emplace_back(std::array<vec2f, 2>{ curSample, t0 });
+				addNewT({ trigC, t0, m });
+				addNewT({ trigC, m, t1 });
+			}
+		}
+	}
+	return { samples, lines };
 }

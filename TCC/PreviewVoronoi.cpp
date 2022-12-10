@@ -88,7 +88,7 @@ void PreviewVoronoi::drawExtraCommonEditor()
 
 void PreviewVoronoi::clear()
 {
-	robotCoords.clear();
+	Clear(robotCoords, robotRadiusOffs, robotRadius);
 	clearPointersToRobots();
 	recalculateVoronoi();
 }
@@ -218,45 +218,34 @@ void PreviewVoronoi::tick()
 			tot += walk / lenLeft * off; // atração para o centro de gravidade da célula
 
 			// forças de repulsão
-			static constexpr double D = 50; // raio de observação (além do próprio raio)
+			static constexpr double D = 10; // raio de observação (além do próprio raio)
 			for (size_t j = 0; j != n; j++)
 			{
 				if (j == i)
 					continue;
 				const auto& cOther = coords[j];
-				auto rng = [&]
+				if (auto dTot = coord - cOther) // repulsão em relação ao cOther
 				{
-					// se estiverem na mesma coordenada, vamos escolher um vetor aleatório de repulsão
+					auto d = length(dTot);
+					const auto sr = r1 + radii[j];
+					if (d < D + sr) // outro agente dentro do nosso raio de observação
+					{
+						const auto actualD = d - sr;
+						double f;
+						if (actualD < invMaxStep) // já estão colidindo (actualD < 0) ou mto próximos q iam explodir de ir longe
+							f = maxStep; // força máxima
+						else
+							f = 1 / actualD;
+						const auto uDesloc = dTot / d;
+						tot += f * uDesloc;
+					}
+				}
+				else // dois agentes na mesma coordenada, corrigir a simulação com um deslocamento aleatório
+				{
 					std::uniform_real_distribution d(0., 2 * std::numbers::pi);
 					auto angle = d(mt);
 					vec2d rep{ cos(angle), sin(angle) };
 					tot += rep * maxStep;
-				};
-				if (auto dTot = coord - cOther)
-				{
-					auto d = length(dTot);
-					d -= r1 + radii[j];
-					if (d < D)
-					{
-						if (d == 0) // em caso de floating point inaccuracy
-							rng();
-						else
-						{
-							auto normed = dTot / abs(d);
-							if (d < 0)
-								tot = maxStep * normed;
-							else
-							{
-								auto f = 1 / (300*d);
-								f = std::min(f, maxStep * 1.1);
-								tot += f * normed;
-							}
-						}
-					}
-				}
-				else
-				{
-					rng();
 				}
 			}
 		}
@@ -270,4 +259,5 @@ void PreviewVoronoi::tick()
 void PreviewVoronoi::recalculateMaxStep()
 {
 	maxStep = static_cast<double>(tickOff * speed);
+	invMaxStep = 1 / maxStep;
 }

@@ -10,7 +10,7 @@
 
 ViewerBase::ViewerBase(Application* app, sf::Image* imgPtr) :
 	app{ app },
-	circleColorSFML{ sf::Color::Green },
+	circleColor{ sf::Color::Green },
 	highlightPixelHovered{ false },
 	drawBorder{ false },
 	radius{ 10.f },
@@ -159,7 +159,7 @@ sf::Color ViewerBase::getColor(float x, float y)
 {
 	if (renderType == RenderType::RightColor)
 		return getRightColor(x, y);
-	return circleColorSFML;
+	return circleColor;
 }
 
 sf::Color ViewerBase::getColor(const vec2f& c)

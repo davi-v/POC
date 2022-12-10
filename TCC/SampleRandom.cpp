@@ -4,7 +4,7 @@
 void SampleRandom::samplesExtraDrawUI()
 {
 	if (ImGui::InputScalar("Seed", ImGuiDataType_U32, &samplesSeed))
-		recalculateSamplesAndAllocation();
+		initSamplesAndAllocation();
 }
 
 const char* SampleRandom::getTitle()
@@ -16,10 +16,16 @@ SampleRandom::SampleRandom(ViewerBase& viewerBase) :
 	SampleBased(viewerBase),
 	samplesSeed(0)
 {
-	recalculateSamplesAndAllocation();
+	initSamplesAndAllocation();
 }
 
-void SampleRandom::recalculateSamplesAndAllocation()
+void SampleRandom::initSamplesAndAllocation()
+{
+	recalculateSamplesOnly();
+	recalculateTargetsGreedyMethod();
+}
+
+void SampleRandom::recalculateSamplesOnly()
 {
 	samples.clear();
 	const auto& img = *viewerBase.currentImage;
@@ -46,5 +52,4 @@ void SampleRandom::recalculateSamplesAndAllocation()
 		p.y = (float)ip.second + off.y + dOff(mt);
 	}
 
-	recalculateGreedyMethod();
 }

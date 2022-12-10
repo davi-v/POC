@@ -19,12 +19,13 @@ class Application
 public:
 	void addMessage(const sf::String& msg);
 
+	sf::Color backgroundColor;
+
 	float
-		backgroundColor[3],
 		zoomFac,
 		zoomLevel;
 
-	sf::Color getSFBackgroundColor();
+	const sf::Color& getSFBackgroundColor();
 	std::unique_ptr<ViewerBase> viewerBase;
 	std::unique_ptr<Simulator2D> editor;
 	Application(sf::RenderWindow& window);

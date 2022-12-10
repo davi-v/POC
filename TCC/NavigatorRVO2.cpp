@@ -10,7 +10,7 @@ NavigatorRVO2::NavigatorRVO2(Simulator2D& sim) :
 {
 }
 
-NavigatorRVO2::NavigatorRVO2(ViewerBase& viewerBase, Agents& agents) :
+NavigatorRVO2::NavigatorRVO2(ViewerBase& viewerBase, const Agents& agents) :
 	NavigatorRVO2(viewerBase.app->window, &viewerBase, agents)
 {
 }
@@ -25,21 +25,43 @@ void NavigatorRVO2::drawUIExtra()
 		ColorPicker3U32("Trajectory Color", trajectoryColor);
 	}
 
-	bool any = false;
-	any |= ImGui::InputFloat("neighbourDist", &neighbourDist);
-	any |= ImGui::InputScalar("maxNeighbours", ImGuiDataType_U64, &maxNeighbours);
-	any |= ImGui::InputFloat("timeHorizon", &timeHorizon);
-	//any |= ImGui::InputFloat("timeHorizonObst", &timeHorizonObst);
-	auto changedMaxSpeed = ImGui::InputFloat("maxSpeed", &maxSpeed);
+	if (ImGui::Checkbox("Use Fixed Observation Radius", &usingPredefinedObservationRadius))
+	{
+		const auto n = agents.size();
+		if (usingPredefinedObservationRadius)
+		{
+			setObservationRadii();
+		}
+		else
+		{
+			for (size_t i = 0; i != n; i++)
+				rvoSim->setAgentNeighborDist(i, agents[i].radius + maxRadius);
+		}
+	}
 
-	any |= changedMaxSpeed;
-
-	if (changedMaxSpeed)
+	if (usingPredefinedObservationRadius)
+		if (DragScalarMinMax("neighbourDist", neighbourDist, 0.f, 1000.f))
+			setObservationRadii();
+	if (DragScalarMax("maxNeighbours", maxNeighbours, size_t(100)))
+	{
+		const auto n = agents.size();
+		for (size_t i = 0; i != n; i++)
+			rvoSim->setAgentMaxNeighbors(i, maxNeighbours);
+	}
+	if (DragScalarMinMax("timeHorizon", timeHorizon, .01f, 100.f))
+	{
+		const auto n = agents.size();
+		for (size_t i = 0; i != n; i++)
+			rvoSim->setAgentTimeHorizon(i, timeHorizon);
+	}
+	if (DragScalarMinMax("maxSpeed", maxSpeed, 0.f, 500.f))
 	{
 		accel = maxSpeed / .4f;
 		decel = maxSpeed / .4f;
+		const auto n = agents.size();
+		for (size_t i = 0; i != n; i++)
+			rvoSim->setAgentMaxSpeed(i, maxSpeed);
 	}
-
 	if (ImGui::MenuItem("Restart"))
 		restart();
 
@@ -47,12 +69,13 @@ void NavigatorRVO2::drawUIExtra()
 	ImGui::Checkbox("Draw Trajectories", &drawTrajectories);
 	if (ImGui::MenuItem("Dump CSV with coordinates"))
 		dumpCSV();
+}
 
-	if (any)
-	{
-		running = false;
-		restart();
-	}
+void NavigatorRVO2::setObservationRadii()
+{
+	const auto n = agents.size();
+	for (size_t i = 0; i != n; i++)
+		rvoSim->setAgentNeighborDist(i, neighbourDist);
 }
 
 sf::Color NavigatorRVO2::getColor(float x, float y) const
@@ -105,12 +128,18 @@ std::vector<vec2d> NavigatorRVO2::getAgentPositions()
 
 void NavigatorRVO2::addAgentImpl(const Agent& agent)
 {
+	float raioObservação;
+	if (usingPredefinedObservationRadius)
+		raioObservação = neighbourDist;
+	else
+		raioObservação = agent.radius + maxRadius;
+
 	rvoSim->addAgent(
 		RVO::Vector2(static_cast<float>(agent.coord.x), static_cast<float>(agent.coord.y)),
-		neighbourDist,
+		raioObservação,
 		maxNeighbours,
 		timeHorizon,
-		timeHorizonObst,
+		0, // unused
 		agent.radius,
 		maxSpeed
 	);
@@ -119,6 +148,10 @@ void NavigatorRVO2::addAgentImpl(const Agent& agent)
 
 void NavigatorRVO2::init()
 {
+	maxRadius = std::max_element(agents.begin(), agents.end(), [](const Agent& a, const Agent& b)
+		{
+			return a.radius < b.radius;
+		})->radius;
 	neighbourDist = 6 * std::max_element(agents.begin(), agents.end(), [](const Agent& a, const Agent& b)
 		{
 			return a.radius < b.radius;
@@ -133,7 +166,13 @@ NavigatorRVO2::NavigatorRVO2(sf::RenderWindow& w, ViewerBase* viewerBase) :
 	drawTrajectories(false),
 	agentColor(sf::Color::Red),
 	goalColor(sf::Color::Green),
-	dstLineColor(sf::Color::Magenta)
+	dstLineColor(sf::Color::Magenta),
+	timeHorizon(1.25f),
+	maxSpeed(DEFAULT_AGENT_MAX_VELOCITY),
+	maxNeighbours(6),
+	accel(maxSpeed / .4f),
+	decel(maxSpeed / .4f),
+	usingPredefinedObservationRadius(false)
 {
 }
 
@@ -157,7 +196,7 @@ void NavigatorRVO2::tick()
 		if (const auto& goalPtr = agents[i].par)
 		{
 			auto vecToGoal = static_cast<RVO::Vector2>(goalPtr->coord) - rvoSim->getAgentPosition(i);
-			auto lenSquared = vecToGoal * vecToGoal; // "*" is RVO's dot product
+			const auto lenSquared = vecToGoal * vecToGoal; // "*" is RVO's dot product
 
 			static constexpr float EPS_TOO_CLOSE = 1e-3f;
 			if (lenSquared < EPS_TOO_CLOSE) // chegou
@@ -212,7 +251,6 @@ void NavigatorRVO2::draw()
 	{
 		const auto& agent = agents[i];
 		PrepareCircleRadius(circle, agent.radius);
-		//PrepareCircleRadius(circle, rvoSim->getAgentRadius(i));
 		const auto& coord = rvoSim->getAgentPosition(i);
 		auto x = coord.x();
 		auto y = coord.y();

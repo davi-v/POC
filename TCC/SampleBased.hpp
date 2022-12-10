@@ -10,18 +10,16 @@ class SampleBased : public CommonEditor
 	void onAdd() override;
 	void onDelete() override;
 	void onChangeRadius() override;
-
 	void drawExtraCommonEditor() override;
-
-	using P = std::pair<size_t, size_t>;
-	typedef std::deque<P> GraphV; // índice do robô, índice do ponto
-	typedef GraphV GraphE; // índices do GraphV
-
 	void onImgChangeImpl() override;
-	void recreateNav();
 
 	bool shouldAddEdge(size_t i, size_t j) const;
 
+	Agents recalculateGoalsGetAgents();
+
+	void recreateNav();
+
+	void saveCoordsFromNav();
 	void dumpGraph();
 	void dumpGraph2();
 	void importAssignment();
@@ -29,9 +27,16 @@ class SampleBased : public CommonEditor
 
 	sf::RenderWindow& accessW();
 
+	using P = std::pair<size_t, size_t>;
+	typedef std::deque<P> GraphV; // índice do robô, índice do ponto
+	typedef GraphV GraphE; // índices do GraphV
+
+	std::vector<Goal> goals;
+	sf::Color goalColor;
+
 protected:
 
-	static constexpr size_t DEFAULT_N_SAMPLES = 100; // > 0
+	static constexpr size_t DEFAULT_N_SAMPLES = 1000; // > 0
 
 	std::deque<sf::Vector2f> orgVertices;
 	unsigned
@@ -63,17 +68,16 @@ protected:
 	std::vector<size_t> targets;
 	std::vector<vec2d> curCirclePointCount;
 	std::unique_ptr<NavigatorRVO2> nav;
-	std::vector<Agent> agents;
-	std::vector<Goal> goals;
 
 	virtual void drawExtraSampleBased();
-	void recalculateGreedyMethod();
+	virtual void recalculateSamplesOnly() = 0;
+	void recalculateTargetsGreedyMethod();
 	double getRobotArea(size_t robotIdx) const;
 	double getAreaCovered(size_t i, size_t j);
 	void recalculateCirclePointCount();
 	Cell getCellFromCoordAndRadius(const vec2d& c, double r);
 	double getPolArea(double r);
-	virtual void recalculateSamplesAndAllocation() = 0;
+	virtual void initSamplesAndAllocation() = 0;
 	void drawUIImpl() override;
 
 	virtual void drawUISpecific();

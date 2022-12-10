@@ -8,7 +8,8 @@ class CommonEditor : public Previewer
 	void draw() override;
 public:
 	virtual ~CommonEditor() = default;
-	sf::Color robotColor;
+	sf::Color
+		robotColor;
 	void clearPointersToRobots();
 	void pollEvent(const sf::Event& e) override;
 
