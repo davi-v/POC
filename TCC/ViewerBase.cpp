@@ -209,7 +209,7 @@ void ViewerBase::onImgChangeBase(sf::Image* imgPtr)
 {
 	currentImage = imgPtr;
 	currentImageTexture.loadFromImage(*currentImage);
-	currentImageSprite.setTexture(currentImageTexture);
+	currentImageSprite.setTexture(currentImageTexture, true);
 
 	const auto& img = *currentImage;
 	sf::Image imgA = *currentImage;
@@ -222,7 +222,7 @@ void ViewerBase::onImgChangeBase(sf::Image* imgPtr)
 			imgA.setPixel(j, i, newC);
 		}
 	currentImageATexture.loadFromImage(imgA);
-	currentImageASprite.setTexture(currentImageATexture);
+	currentImageASprite.setTexture(currentImageATexture, true);
 
 	const auto [imgW, imgH] = currentImage->getSize();
 	imgWF = (float)imgW,

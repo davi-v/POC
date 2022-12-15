@@ -206,6 +206,9 @@ void PreviewVoronoi::tick()
 	std::vector<vec2d> vDeslocamento(n);
 	for (size_t i = 0; i != n; i++)
 	{
+		if (i == circleMovingIndex)
+			continue;
+
 		const auto& target = voronoiInfo->targets[i];
 		const auto& coord = coords[i];
 		const auto& r1 = radii[i];
@@ -234,7 +237,10 @@ void PreviewVoronoi::tick()
 					const auto actualD = d - sr;
 					double f;
 					if (actualD < invMaxStep) // já estão colidindo (actualD < 0) ou mto próximos q iam explodir de ir longe
-						f = maxStep; // força máxima
+					{
+						//f = maxStep; // força máxima
+						f = (2 - 2 / (1 + pow(std::numbers::e, -actualD))) * maxStep;
+					}
 					else
 						f = 1 / actualD;
 					const auto uDesloc = dTot / d;
