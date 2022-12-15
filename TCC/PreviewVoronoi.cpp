@@ -210,43 +210,43 @@ void PreviewVoronoi::tick()
 		const auto& coord = coords[i];
 		const auto& r1 = radii[i];
 		auto& tot = vDeslocamento[i];
+
 		if (auto off = target - coord) // se ainda não convergiu 100%
 		{
 			const auto lenLeft = length(off);
-			const auto walk = std::min(lenLeft, maxStep);
-
+			const auto& walk = std::min(lenLeft, maxStep);
 			tot += walk / lenLeft * off; // atração para o centro de gravidade da célula
+		}
 
-			// forças de repulsão
-			static constexpr double D = 10; // raio de observação (além do próprio raio)
-			for (size_t j = 0; j != n; j++)
+		// forças de repulsão
+		static constexpr double D = 10; // raio de observação (além do próprio raio)
+		for (size_t j = 0; j != n; j++)
+		{
+			if (j == i)
+				continue;
+			const auto& cOther = coords[j];
+			if (auto dTot = coord - cOther) // repulsão em relação ao cOther
 			{
-				if (j == i)
-					continue;
-				const auto& cOther = coords[j];
-				if (auto dTot = coord - cOther) // repulsão em relação ao cOther
+				auto d = length(dTot);
+				const auto sr = r1 + radii[j];
+				if (d < D + sr) // outro agente dentro do nosso raio de observação
 				{
-					auto d = length(dTot);
-					const auto sr = r1 + radii[j];
-					if (d < D + sr) // outro agente dentro do nosso raio de observação
-					{
-						const auto actualD = d - sr;
-						double f;
-						if (actualD < invMaxStep) // já estão colidindo (actualD < 0) ou mto próximos q iam explodir de ir longe
-							f = maxStep; // força máxima
-						else
-							f = 1 / actualD;
-						const auto uDesloc = dTot / d;
-						tot += f * uDesloc;
-					}
+					const auto actualD = d - sr;
+					double f;
+					if (actualD < invMaxStep) // já estão colidindo (actualD < 0) ou mto próximos q iam explodir de ir longe
+						f = maxStep; // força máxima
+					else
+						f = 1 / actualD;
+					const auto uDesloc = dTot / d;
+					tot += f * uDesloc;
 				}
-				else // dois agentes na mesma coordenada, corrigir a simulação com um deslocamento aleatório
-				{
-					std::uniform_real_distribution d(0., 2 * std::numbers::pi);
-					auto angle = d(mt);
-					vec2d rep{ cos(angle), sin(angle) };
-					tot += rep * maxStep;
-				}
+			}
+			else // dois agentes na mesma coordenada, corrigir a simulação com um deslocamento aleatório
+			{
+				std::uniform_real_distribution d(0., 2 * std::numbers::pi);
+				auto angle = d(mt);
+				vec2d rep{ cos(angle), sin(angle) };
+				tot += rep * maxStep;
 			}
 		}
 	}
